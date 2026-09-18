@@ -18,6 +18,28 @@
 
 Python 3.11+, HeadHunter API v1, Claude API (Anthropic SDK), Click/Typer (CLI).
 
+## Как это работает
+
+Все настройки (фильтры поиска, словарь навыков, тон и акценты писем) хранятся в одном файле `profile/preferences.json`. CLI-команды берут значения из него по умолчанию; явно переданные опции их переопределяют.
+
+| Команда | Что делает | Результат |
+|---|---|---|
+| `fetch` | Выгружает вакансии с HH.ru по фильтрам из профиля (US-02) | `data/raw_vacancies_{timestamp}.json` |
+| `analyze` | Gap Analysis: частота навыков на рынке и сравнение с резюме (US-03) | `reports/market_skills_summary.md` |
+| `cover-letter <vacancy_id>` | Сопроводительное письмо под вакансию через Claude API (US-04) | `reports/cover_letters/cl_{vacancy_id}.md` |
+| `cv-tips <vacancy_id>` | 3–5 советов по адаптации резюме под вакансию (US-05) | `reports/cv_tips_{vacancy_id}.md` |
+
+Типовой сценарий:
+
+```
+python cli.py fetch
+python cli.py analyze
+python cli.py cover-letter 123456789
+python cli.py cv-tips 123456789
+```
+
+Для `analyze`, `cover-letter` и `cv-tips` нужен актуальный файл резюме `profile/my_cv.md`.
+
 ## Планируемая структура проекта
 
 ```
@@ -41,9 +63,12 @@ job-market-analyzer/
 
 ## Roadmap
 
-- [ ] Модуль сбора вакансий с HH.ru
-- [ ] Модуль анализа рынка и Gap Analysis
-- [ ] Генерация сопроводительных писем через Claude API
-- [ ] Рекомендации по адаптации резюме
+- [ ] US-01: Конфигурационный профиль `profile/preferences.json`
+- [ ] US-02: Сбор вакансий с HH.ru
+- [ ] US-03: Анализ рынка и Gap Analysis
+- [ ] US-04: Генерация сопроводительных писем через Claude API
+- [ ] US-05: Рекомендации по адаптации резюме
+
+Открытые вопросы (доступ к HH API, накопление данных, отказоустойчивость и стоимость LLM-вызовов) описаны в разделе 8 `requirements.md`.
 
 Этот README будет обновляться по мере разработки.
