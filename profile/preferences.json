@@ -1,0 +1,21 @@
+{
+  "search_settings": {
+    "target_roles": ["Бизнес-аналитик", "Системный аналитик", "Business Analyst", "Systems Analyst"],
+    "regions": [{"id": 113, "name": "Россия"}, {"id": 16, "name": "Беларусь"}],
+    "experience_level": "between1And3",
+    "employment_type": "full",
+    "schedule": "remote",
+    "currency": "RUR",
+    "min_salary": null
+  },
+  "analytical_skills_dictionary": [
+    "SQL", "PostgreSQL", "UML", "BPMN", "REST API",
+    "SOAP", "JSON", "XML", "Swagger", "Postman",
+    "Python", "Kafka", "RabbitMQ", "Agile", "Scrum"
+  ],
+  "llm_preferences": {
+    "cover_letter_language": "ru",
+    "tone": "professional_and_enthusiastic",
+    "focus_areas": ["Интеграции и API", "Проектирование баз данных", "Сбор и документирование требований"]
+  }
+}

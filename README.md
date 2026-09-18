@@ -49,6 +49,7 @@ job-market-analyzer/
 ├── reports/               # Сгенерированные отчеты и сопроводительные письма
 │   └── cover_letters/
 ├── src/                   # Исходный код
+│   ├── config.py          # Загрузка profile/preferences.json и значения по умолчанию
 │   ├── hh_client.py       # Интеграция с API HH.ru
 │   ├── analyzer.py        # Модуль парсинга навыков и Gap-анализа
 │   ├── llm_service.py     # Интеграция с Claude API
