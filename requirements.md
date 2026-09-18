@@ -57,7 +57,7 @@ flowchart TD
     "regions": [{"id": 113, "name": "Россия"}, {"id": 16, "name": "Беларусь"}],
     "experience_level": "between1And3",
     "employment_type": "full",
-    "schedule": "remote",
+    "schedule": ["remote", "office", "hybrid"],
     "currency": "RUR",
     "min_salary": null
   },
@@ -85,7 +85,7 @@ flowchart TD
 2. **AC 2.2:** Фильтрация по регионам поддерживается через `regions` в `search_settings` (`profile/preferences.json`); по умолчанию — Россия (ID: 113), Беларусь (ID: 16), или конкретные города (Москва, Минск и др.). CLI-аргумент переопределяет значение из файла.
 3. **AC 2.3:** Результаты выгрузки сохраняются локально в формате `data/raw_vacancies_{timestamp}.json`.
 4. **AC 2.4:** Для каждой вакансии сохраняются параметры: `id`, `name`, `salary`, `area`, `employer`, `requirement`, `responsibility`, `alternate_url`, `published_at`.
-5. **AC 2.5:** Дополнительные фильтры поиска поддерживаются согласно `search_settings` из `profile/preferences.json`: опыт работы (`experience_level`: `noExperience` / `between1And3` / `between3And6` / `moreThan6`), тип занятости (`employment_type`), график работы (`schedule`), минимальная зарплата (`min_salary`) и валюта (`currency`). Явные CLI-аргументы имеют приоритет над значениями по умолчанию из файла.
+5. **AC 2.5:** Дополнительные фильтры поиска поддерживаются согласно `search_settings` из `profile/preferences.json`: опыт работы (`experience_level`: `noExperience` / `between1And3` / `between3And6` / `moreThan6`), тип занятости (`employment_type`), формат работы (`schedule` — список значений: `remote` / `office` / `hybrid`; соответствие параметрам HH API уточняется при реализации), минимальная зарплата (`min_salary`) и валюта (`currency`). Явные CLI-аргументы имеют приоритет над значениями по умолчанию из файла.
 
 ### US-03: Агрегированный анализ навыков (Market Gap Analysis)
 > **Как** *Бизнес-системный аналитик,*  
@@ -172,7 +172,7 @@ job-market-analyzer/
 
 | Команда | Назначение (US) | Аргументы / опции | Результат |
 |---|---|---|---|
-| `fetch` | Сбор вакансий с HH.ru (US-02) | `--role`, `--region`, `--experience`, `--employment`, `--schedule`, `--min-salary` — необязательные, переопределяют `search_settings` | `data/raw_vacancies_{timestamp}.json` |
+| `fetch` | Сбор вакансий с HH.ru (US-02) | `--role`, `--region`, `--experience`, `--employment`, `--schedule` (можно указывать несколько раз), `--min-salary` — необязательные, переопределяют `search_settings` | `data/raw_vacancies_{timestamp}.json` |
 | `analyze` | Агрегированный Gap Analysis (US-03) | `--data` — необязательный путь к файлу вакансий; по умолчанию берётся самый свежий файл из `data/` | `reports/market_skills_summary.md` |
 | `cover-letter <vacancy_id>` | Генерация сопроводительного письма (US-04) | `vacancy_id` — обязательный позиционный аргумент | `reports/cover_letters/cl_{vacancy_id}.md` |
 | `cv-tips <vacancy_id>` | Советы по адаптации резюме (US-05) | `vacancy_id` — обязательный позиционный аргумент | `reports/cv_tips_{vacancy_id}.md` |
