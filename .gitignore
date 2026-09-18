@@ -1,0 +1,18 @@
+# Секреты
+.env
+
+# Личное резюме
+profile/my_cv.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Сгенерированные данные и отчёты (папки сохраняются через .gitkeep)
+data/*
+!data/.gitkeep
+reports/cover_letters/*
+!reports/cover_letters/.gitkeep
+reports/*.md
