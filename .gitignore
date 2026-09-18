@@ -4,6 +4,9 @@
 # Личное резюме
 profile/my_cv.md
 
+# Временные файлы
+tmp/
+
 # Python
 __pycache__/
 *.pyc
