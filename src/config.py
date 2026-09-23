@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PREFERENCES_PATH = PROJECT_ROOT / "profile" / "preferences.json"
 
-# Значения по умолчанию из AC 2.1, AC 2.2, AC 3.1, AC 4.5 (используются, если файла или поля нет).
+# Значения по умолчанию из AC 2.1, AC 2.2, AC 3.1, AC 4.5, NFR-1 (используются, если файла или поля нет).
 DEFAULT_PREFERENCES: dict[str, Any] = {
     "search_settings": {
         "target_roles": ["Бизнес-аналитик", "Системный аналитик", "Business Analyst", "Systems Analyst"],
@@ -21,6 +21,9 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "schedule": None,
         "currency": None,
         "min_salary": None,
+        "exclude_words": [],
+        "initial_period_days": 14,
+        "request_delay_sec": 3.0,
     },
     "analytical_skills_dictionary": [
         "SQL", "UML", "BPMN", "REST API", "JSON",

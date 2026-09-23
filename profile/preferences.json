@@ -7,11 +7,14 @@
       "Функциональный аналитик", "Functional Analyst"
     ],
     "regions": [{"id": 113, "name": "Россия"}, {"id": 16, "name": "Беларусь"}],
-    "experience_level": "moreThan6",
+    "experience_level": ["between1And3", "between3And6", "moreThan6"],
     "employment_type": "full",
     "schedule": ["remote", "office", "hybrid"],
     "currency": "RUR",
-    "min_salary": null
+    "min_salary": null,
+    "exclude_words": ["1С"],
+    "initial_period_days": 14,
+    "request_delay_sec": 3
   },
   "analytical_skills_dictionary": [
     "BPMN", "UML", "Use Case", "User Story", "ER-диаграмма", "DFD", "ArchiMate", "C4",
