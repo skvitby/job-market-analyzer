@@ -5,6 +5,7 @@
 оставив остальной Python (в том числе Claude API) внутри VPN.
 """
 
+import html
 import json
 import logging
 import os
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 API_URL = "https://api.hh.ru"
 DATA_DIR = PROJECT_ROOT / "data"
+DETAILS_DIR = DATA_DIR / "details"  # кэш полных описаний вакансий (AC 2.7)
 
 PER_PAGE = 100            # максимум HH API
 MAX_RESULTS = 2000        # HH отдаёт не больше 2000 вакансий на один поиск
@@ -33,6 +35,7 @@ RETRY_BASE_DELAY = 10.0   # пауза перед повтором: 10, 20, 30 �
 DEFAULT_DELAY = 3.0       # пауза между запросами (NFR-1)
 MAX_PERIOD_DAYS = 30      # HH ищет вакансии не старше 30 дней
 FETCH_OVERLAP = timedelta(hours=1)  # запас при догрузке, дубли убирает дедупликация
+MAX_DETAIL_FAILURES = 5   # столько ошибок подряд при загрузке описаний — останавливаем этап
 
 # Соответствие значений из preferences.json параметрам HH API (AC 2.5).
 WORK_FORMAT_MAP = {"office": "ON_SITE", "hybrid": "HYBRID", "remote": "REMOTE"}
@@ -42,6 +45,10 @@ EXPERIENCE_VALUES = {"noExperience", "between1And3", "between3And6", "moreThan6"
 
 class HHApiError(RuntimeError):
     """Ошибка обращения к HH API с понятным пользователю описанием."""
+
+    def __init__(self, message: str, code: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.code = code  # HTTP-код ответа HH, если он был
 
 
 def _as_list(value: Any) -> list:
@@ -169,7 +176,7 @@ class HHClient:
                                code or "-", result.returncode, attempt, MAX_RETRIES, wait)
                 time.sleep(wait)
                 continue
-            raise HHApiError(self._describe_error(code, body, result.returncode))
+            raise HHApiError(self._describe_error(code, body, result.returncode), code=code or None)
 
         raise HHApiError("Исчерпаны попытки запроса к HH")  # недостижимо, для линтера
 
@@ -182,6 +189,8 @@ class HHClient:
             return "HH заблокировал IP (DDoS-Guard): проверьте, что curl исключён из VPN"
         if code == "403":
             return "HH вернул 403: проверьте HH_APP_TOKEN"
+        if code == "404":
+            return "HH вернул 404: вакансия не найдена"
         return f"HH вернул HTTP {code}: {body[:300]}"
 
     def search(self, params: list[tuple[str, Any]]) -> tuple[list[dict[str, Any]], int]:
@@ -226,6 +235,40 @@ _TAG_RE = re.compile(r"<[^>]+>")
 def _clean(text: Optional[str]) -> Optional[str]:
     """Убирает из сниппета HTML-теги подсветки (<highlighttext>)."""
     return _TAG_RE.sub("", text) if text else text
+
+
+_BOLD_RE = re.compile(r"<(strong|b)\b[^>]*>(.*?)</\1\s*>", re.IGNORECASE | re.DOTALL)
+_LIST_ITEM_RE = re.compile(r"<li\b[^>]*>", re.IGNORECASE)
+_BLOCK_TAG_RE = re.compile(r"<\s*/?\s*(br|p|ul|ol|li|div|h\d)\b[^>]*>", re.IGNORECASE)
+_INVISIBLE_RE = re.compile("[​‌‍⁠﻿]")
+
+
+def _bold(match: re.Match) -> str:
+    """<strong>текст</strong> -> **текст**; пробелы выносятся за пределы звёздочек."""
+    inner = match.group(2)
+    if not _TAG_RE.sub("", inner).strip():
+        return inner
+    lead = " " if inner[:1].isspace() else ""
+    trail = " " if inner[-1:].isspace() else ""
+    return f"{lead}**{inner.strip()}**{trail}"
+
+
+def _html_to_paragraphs(text: Optional[str]) -> Optional[list[str]]:
+    """Переводит HTML-описание вакансии в список абзацев в формате Markdown.
+
+    Абзацы и переносы (<p>, <br>, <li> и т.п.) -> отдельные элементы списка,
+    <strong>/<b> -> **жирный**, пункты списков -> "- пункт". Невидимые символы
+    и пустые абзацы удаляются. Список удобно читать прямо в JSON-файле кэша.
+    """
+    if text is None:
+        return None
+    text = _INVISIBLE_RE.sub("", text)
+    text = _BOLD_RE.sub(_bold, text).replace("****", "")
+    text = _LIST_ITEM_RE.sub("\n- ", text)
+    text = _BLOCK_TAG_RE.sub("\n", text)
+    text = html.unescape(_TAG_RE.sub("", text)).replace("\xa0", " ")
+    paragraphs = (re.sub(r"\s+", " ", line).strip() for line in text.splitlines())
+    return [p for p in paragraphs if p and p not in ("-", "**")]
 
 
 def to_record(item: dict[str, Any]) -> dict[str, Any]:
@@ -280,3 +323,88 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Сохранено %d вакансий в %s", len(records), path)
     return path
+
+
+def _cached_detail_ids() -> set[str]:
+    """ID вакансий, полные описания которых уже есть в кэше data/details/."""
+    return {path.stem for path in DETAILS_DIR.glob("*.json")}
+
+
+def _all_vacancy_ids(area: Optional[str] = None) -> list[str]:
+    """ID вакансий из всех файлов data/raw_vacancies_*.json, без дублей, в порядке появления.
+
+    area — название региона (например, "Минск"), чтобы взять только его вакансии.
+    """
+    ids: dict[str, None] = {}
+    for path in sorted(DATA_DIR.glob("raw_vacancies_*.json")):
+        for vacancy in json.loads(path.read_text(encoding="utf-8"))["vacancies"]:
+            if area is None or vacancy.get("area") == area:
+                ids[str(vacancy["id"])] = None
+    return list(ids)
+
+
+def _save_detail(vacancy_id: str, detail: dict[str, Any]) -> None:
+    """Сохраняет описание в data/details/{id}.json через временный файл (без обрывков при Ctrl+C)."""
+    path = DETAILS_DIR / f"{vacancy_id}.json"
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(detail, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(path)
+
+
+def fetch_details(limit: Optional[int] = None, area: Optional[str] = None) -> tuple[int, int]:
+    """Догружает полные описания и key_skills для вакансий, которых нет в кэше (AC 2.7).
+
+    Берутся вакансии из всех файлов выгрузок, поэтому то, что не загрузилось
+    в прошлый раз, загружается при следующем запуске. Вакансии, удалённые с HH (404),
+    сохраняются в кэш с description = None, чтобы не запрашивать их повторно.
+    limit — ограничение количества (для проверки на небольшой выборке),
+    area — загрузить только вакансии этого региона (например, "Минск").
+    Возвращает (загружено, ошибок).
+    """
+    cached = _cached_detail_ids()
+    pending = [vid for vid in _all_vacancy_ids(area) if vid not in cached]
+    if limit is not None:
+        pending = pending[:limit]
+    if not pending:
+        logger.info("Все описания вакансий уже в кэше")
+        return 0, 0
+
+    settings = load_preferences()["search_settings"]
+    client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
+    DETAILS_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("Загружаю полные описания: %d вакансий (~%.0f мин)", len(pending), len(pending) * client.delay / 60)
+
+    loaded = failed = failed_in_row = 0
+    started = time.monotonic()
+    for n, vacancy_id in enumerate(pending, start=1):
+        now = datetime.now().astimezone().isoformat(timespec="seconds")
+        try:
+            data = client.get(f"/vacancies/{vacancy_id}")
+            detail = {
+                "id": vacancy_id,
+                "description": _html_to_paragraphs(data.get("description")),
+                "key_skills": [skill["name"] for skill in data.get("key_skills") or []],
+                "fetched_at": now,
+            }
+        except HHApiError as exc:
+            if exc.code != "404":
+                failed += 1
+                failed_in_row += 1
+                logger.error("Вакансия %s: %s", vacancy_id, exc)
+                if failed_in_row >= MAX_DETAIL_FAILURES:
+                    logger.error("%d ошибок подряд — останавливаю загрузку описаний, "
+                                 "оставшиеся загрузятся при следующем fetch", failed_in_row)
+                    break
+                continue
+            logger.warning("Вакансия %s удалена с HH, сохраняю без описания", vacancy_id)
+            detail = {"id": vacancy_id, "description": None, "key_skills": [], "fetched_at": now}
+
+        _save_detail(vacancy_id, detail)
+        loaded += 1
+        failed_in_row = 0
+        if n % 10 == 0 or n == len(pending):
+            left_min = (time.monotonic() - started) / n * (len(pending) - n) / 60
+            logger.info("Описания: %d/%d (осталось ~%.0f мин)", n, len(pending), left_min)
+
+    logger.info("Описаний загружено: %d, ошибок: %d", loaded, failed)
+    return loaded, failed
