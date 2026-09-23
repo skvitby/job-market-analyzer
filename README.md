@@ -2,7 +2,7 @@
 
 Учебный проект для портфолио бизнес/системного аналитика: инструмент для автоматизации поиска вакансий, анализа рынка труда и подготовки откликов.
 
-**Статус:** 🚧 на этапе проектирования — составлено ТЗ (`requirements.md`), разработка ещё не начата.
+**Статус:** 🚧 в разработке — готовы профиль настроек (US-01) и сбор вакансий с HH.ru (US-02).
 
 ## Идея проекта
 
@@ -32,13 +32,34 @@ Python 3.11+, HeadHunter API v1, Claude API (Anthropic SDK), Click/Typer (CLI).
 Типовой сценарий:
 
 ```
-python cli.py fetch
-python cli.py analyze
-python cli.py cover-letter 123456789
-python cli.py cv-tips 123456789
+python -m src.cli fetch
+python -m src.cli analyze
+python -m src.cli cover-letter 123456789
+python -m src.cli cv-tips 123456789
 ```
 
 Для `analyze`, `cover-letter` и `cv-tips` нужен актуальный файл резюме `profile/my_cv.md`.
+
+## Как запустить
+
+1. Установить зависимости:
+   ```
+   python -m venv .venv
+   .venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+2. Скопировать `.env.example` в `.env` и заполнить:
+   - `HH_USER_AGENT` — название приложения и контактный email;
+   - `HH_CLIENT_ID`, `HH_CLIENT_SECRET` — выдаются после регистрации приложения на [dev.hh.ru](https://dev.hh.ru);
+   - `HH_APP_TOKEN` — токен приложения (`POST https://api.hh.ru/token`, `grant_type=client_credentials`);
+   - `HH_CURL_PATH` — путь к `curl`, если он исключён из VPN (HH блокирует IP VPN-сервисов);
+   - `ANTHROPIC_API_KEY` — для команд, использующих Claude API.
+3. Настроить фильтры в `profile/preferences.json` и запустить сбор:
+   ```
+   python -m src.cli fetch
+   python -m src.cli fetch --region 16 --schedule remote   # разово переопределить профиль
+   ```
+   Первый запуск выгружает вакансии за 14 дней, последующие — с момента предыдущей выгрузки.
 
 ## Планируемая структура проекта
 
@@ -64,12 +85,12 @@ job-market-analyzer/
 
 ## Roadmap
 
-- [ ] US-01: Конфигурационный профиль `profile/preferences.json`
-- [ ] US-02: Сбор вакансий с HH.ru
+- [x] US-01: Конфигурационный профиль `profile/preferences.json`
+- [x] US-02: Сбор вакансий с HH.ru
 - [ ] US-03: Анализ рынка и Gap Analysis
 - [ ] US-04: Генерация сопроводительных писем через Claude API
 - [ ] US-05: Рекомендации по адаптации резюме
 
-Открытые вопросы (доступ к HH API, накопление данных, отказоустойчивость и стоимость LLM-вызовов) описаны в разделе 8 `requirements.md`.
+Открытые вопросы (накопление данных, отказоустойчивость и стоимость LLM-вызовов, полнота текста для Gap-анализа) описаны в разделе 8 `requirements.md`.
 
 Этот README будет обновляться по мере разработки.

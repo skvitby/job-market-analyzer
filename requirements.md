@@ -172,21 +172,21 @@ job-market-analyzer/
 
 ## 7. CLI-команды
 
-Взаимодействие с системой — через команды в терминале (`python cli.py <команда> [опции]`), реализовано на Click/Typer (NFR-3). Значения опций по умолчанию берутся из `profile/preferences.json` (US-01), явно переданные опции их переопределяют.
+Взаимодействие с системой — через команды в терминале (`python -m src.cli <команда> [опции]` из корня проекта), реализовано на Click/Typer (NFR-3). Значения опций по умолчанию берутся из `profile/preferences.json` (US-01), явно переданные опции их переопределяют.
 
 | Команда | Назначение (US) | Аргументы / опции | Результат |
 |---|---|---|---|
-| `fetch` | Сбор вакансий с HH.ru (US-02) | `--role`, `--region`, `--experience`, `--employment`, `--schedule` (можно указывать несколько раз), `--min-salary` — необязательные, переопределяют `search_settings` | `data/raw_vacancies_{timestamp}.json` |
+| `fetch` | Сбор вакансий с HH.ru (US-02) | `--role`, `--region` (ID региона HH), `--experience`, `--employment`, `--schedule` (все, кроме `--min-salary`, можно указывать несколько раз), `--min-salary` — необязательные, переопределяют `search_settings` | `data/raw_vacancies_{timestamp}.json` |
 | `analyze` | Агрегированный Gap Analysis (US-03) | `--data` — необязательный путь к файлу вакансий; по умолчанию берётся самый свежий файл из `data/` | `reports/market_skills_summary.md` |
 | `cover-letter <vacancy_id>` | Генерация сопроводительного письма (US-04) | `vacancy_id` — обязательный позиционный аргумент | `reports/cover_letters/cl_{vacancy_id}.md` |
 | `cv-tips <vacancy_id>` | Советы по адаптации резюме (US-05) | `vacancy_id` — обязательный позиционный аргумент | `reports/cv_tips_{vacancy_id}.md` |
 
 **Пример типового сценария:**
 ```
-python cli.py fetch
-python cli.py analyze
-python cli.py cover-letter 123456789
-python cli.py cv-tips 123456789
+python -m src.cli fetch
+python -m src.cli analyze
+python -m src.cli cover-letter 123456789
+python -m src.cli cv-tips 123456789
 ```
 
 ---
