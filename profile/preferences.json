@@ -102,6 +102,10 @@
   "llm_preferences": {
     "cover_letter_language": "ru",
     "tone": "professional_and_enthusiastic",
-    "focus_areas": ["Интеграции и API", "Проектирование баз данных", "Сбор и документирование требований"]
+    "focus_areas": ["Интеграции и API", "Проектирование баз данных", "Сбор и документирование требований"],
+    "llm_providers": {
+      "vacancy_analysis": {"provider": "anthropic", "model": "claude-haiku-4-5"},
+      "cv_processing": {"provider": "anthropic", "model": "claude-haiku-4-5"}
+    }
   }
 }

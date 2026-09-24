@@ -33,6 +33,11 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "cover_letter_language": "ru",
         "tone": "professional",
         "focus_areas": [],
+        # AC 1.5, ADR-001: провайдер и модель LLM отдельно для вакансий и для резюме.
+        "llm_providers": {
+            "vacancy_analysis": {"provider": "anthropic", "model": "claude-haiku-4-5"},
+            "cv_processing": {"provider": "anthropic", "model": "claude-haiku-4-5"},
+        },
     },
 }
 
