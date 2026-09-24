@@ -32,10 +32,11 @@ PROVIDERS: dict[str, dict[str, Any]] = {
     "qwen": {"client": "openai", "key_env": "DASHSCOPE_API_KEY",
              "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
              "batch_size": 10, "timeout": 120, "console": "Alibaba Cloud Model Studio"},
-    # Ollama по умолчанию работает с контекстом 4096 токенов — отправляем по 2 вакансии.
+    # Малые локальные модели при пакете из нескольких вакансий теряют часть из них (ADR-001, раздел 6),
+    # поэтому отправляем по одной. Контекст Ollama по умолчанию — 4096 токенов.
     # Первый запрос загружает модель в память (до пары минут на слабой видеокарте), поэтому таймаут больше.
     "ollama": {"client": "openai", "key_env": None, "base_url": "http://localhost:11434/v1",
-               "batch_size": 2, "timeout": 600, "console": None},
+               "batch_size": 1, "timeout": 600, "console": None},
 }
 
 

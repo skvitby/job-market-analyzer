@@ -12,6 +12,7 @@ import typer
 
 from src.analyzer import analyze as run_analysis
 from src.hh_client import HHApiError, fetch_details, fetch_vacancies
+from src.llm_service import LLMError
 
 app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакансий BA/SA.", no_args_is_help=True)
 
@@ -78,13 +79,20 @@ def analyze(
                                         help="Один файл вакансий; по умолчанию объединяются все data/raw_vacancies_*.json"),
     days: Optional[int] = typer.Option(None, "--days", min=1, help="Только вакансии, опубликованные за последние N дней"),
     area: Optional[str] = typer.Option(None, "--area", help="Только вакансии региона, например \"Минск\""),
+    no_llm: bool = typer.Option(False, "--no-llm", help="Только поиск по словарю, без обращений к LLM"),
+    llm_refresh: bool = typer.Option(False, "--llm-refresh", help="Заново обработать LLM вакансии, уже бывшие в кэше"),
 ) -> None:
-    """Формирует отчёт о востребованных навыках reports/market_skills_summary.md (US-03)."""
+    """Формирует отчёт о востребованных навыках reports/market_skills_summary.md (US-03).
+
+    Навыки вне словаря довыявляются LLM из llm_providers.vacancy_analysis (profile/preferences.json).
+    """
     try:
-        path, count = run_analysis(data, days, area)
-    except (FileNotFoundError, ValueError) as exc:
+        path, count, llm_error = run_analysis(data, days, area, use_llm=not no_llm, llm_refresh=llm_refresh)
+    except (FileNotFoundError, ValueError, LLMError) as exc:
         typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
+    if llm_error:
+        typer.secho(f"LLM-этап прерван: {llm_error}. В отчёте — результаты из кэша.", fg=typer.colors.YELLOW)
     typer.secho(f"Готово: проанализировано {count} вакансий, отчёт — {path}", fg=typer.colors.GREEN)
 
 
