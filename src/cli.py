@@ -84,15 +84,16 @@ def analyze(
 ) -> None:
     """Формирует отчёт о востребованных навыках reports/market_skills_summary.md (US-03).
 
-    Навыки вне словаря довыявляются LLM из llm_providers.vacancy_analysis (profile/preferences.json).
+    Навыки вне словаря довыявляются LLM из llm_providers.vacancy_analysis (profile/preferences.json),
+    затем навыки рынка сравниваются с profile/my_cv.md через LLM из llm_providers.cv_processing (AC 3.3).
     """
     try:
-        path, count, llm_error = run_analysis(data, days, area, use_llm=not no_llm, llm_refresh=llm_refresh)
+        path, count, warnings = run_analysis(data, days, area, use_llm=not no_llm, llm_refresh=llm_refresh)
     except (FileNotFoundError, ValueError, LLMError) as exc:
         typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
-    if llm_error:
-        typer.secho(f"LLM-этап прерван: {llm_error}. В отчёте — результаты из кэша.", fg=typer.colors.YELLOW)
+    for warning in warnings:
+        typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
     typer.secho(f"Готово: проанализировано {count} вакансий, отчёт — {path}", fg=typer.colors.GREEN)
 
 

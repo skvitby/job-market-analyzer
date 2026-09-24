@@ -7,6 +7,7 @@
 описаниям; результат кэшируется в data/llm_skills_cache.json.
 """
 
+import hashlib
 import json
 import logging
 import re
@@ -26,6 +27,12 @@ REPORT_PATH = REPORTS_DIR / "market_skills_summary.md"
 LLM_CACHE_PATH = DATA_DIR / "llm_skills_cache.json"
 TOP_UNMATCHED = 20  # сколько key_skills вне словаря показывать в отчёте
 TOP_LLM = 30        # сколько навыков, найденных LLM, показывать в отчёте
+
+CV_PATH = PROJECT_ROOT / "profile" / "my_cv.md"
+CV_CACHE_PATH = DATA_DIR / "cv_match_cache.json"
+CV_MIN_SHARE = 0.05  # навыки словаря для сравнения с резюме — встречаются не менее чем в 5% вакансий
+CV_MIN_LLM = 2       # навыки, найденные LLM, — не менее чем в 2 вакансиях
+CV_CACHE_VERSION = 2  # меняется при изменении формата кэша сравнения с резюме — старый кэш не используется
 
 LLM_INSTRUCTION = """Ты анализируешь вакансии бизнес- и системных аналитиков.
 Для каждой вакансии выпиши навыки, которые требуются от кандидата: инструменты, технологии,
@@ -239,65 +246,22 @@ def _format_date(value: Optional[datetime]) -> str:
     return f"{value:%d.%m.%Y}" if value else "—"
 
 
-def _llm_section(vacancies: list[dict[str, Any]], matchers: list[tuple[str, re.Pattern]],
-                 llm_cache: dict[str, dict[str, Any]], llm_error: Optional[str]) -> list[str]:
-    """Раздел отчёта с навыками вне словаря, найденными LLM (AC 3.1)."""
-    counts: Counter[str] = Counter()
-    names: dict[str, Counter[str]] = {}
-    models: Counter[str] = Counter()
-    processed = 0
-    for vacancy in vacancies:
-        entry = llm_cache.get(str(vacancy["id"]))
-        if not entry:
-            continue
-        processed += 1
-        models[f"{entry['provider']} / {entry['model']}"] += 1
-        found: set[str] = set()
-        for raw in entry["skills"]:
-            name = _normalize_llm_skill(raw)
-            if not name or match_skills(name, matchers):
-                continue  # навык уже учтён словарём — в разделе LLM его не показываем
-            key = name.lower()
-            found.add(key)
-            names.setdefault(key, Counter())[name] += 1
-        counts.update(found)  # навык учитывается не более одного раза на вакансию
-
-    lines = ["", f"## Навыки вне словаря, найденные LLM (топ-{TOP_LLM})", ""]
-    if llm_error:
-        lines += [f"> [!warning] Обработка LLM прервана: {llm_error}. Показаны результаты из кэша.", ""]
-    if not processed:
-        return lines + ["Нет вакансий, обработанных LLM (нужны полные описания — команда `fetch`)."]
-
-    lines += [f"> [!info] Получено моделью {', '.join(f'`{m}`' for m in models)} по {processed} из "
-              f"{len(vacancies)} вакансий (только с полным описанием). Это интерпретация модели, а не точный "
-              "поиск: частые навыки — кандидаты на пополнение словаря.", "",
-              "| # | Навык | Вакансий | Доля |", "|---|---|---|---|"]
-    for rank, (key, count) in enumerate(counts.most_common(TOP_LLM), start=1):
-        lines.append(f"| {rank} | {names[key].most_common(1)[0][0]} | {count} | {count / processed:.0%} |")
-    return lines
 
 
-def build_report(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str]],
-                 files: list[Path], days: Optional[int], area: Optional[str],
-                 llm_cache: Optional[dict[str, dict[str, Any]]] = None, llm_error: Optional[str] = None) -> str:
-    """Считает частоту навыков и формирует Markdown-отчёт (AC 3.2).
-
-    llm_cache — результаты LLM (None — анализ без LLM, флаг --no-llm).
-    """
+def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str]],
+                  llm_cache: Optional[dict[str, dict[str, Any]]]) -> dict[str, Any]:
+    """Считает частоты навыков: по словарю и key_skills (AC 3.2) и по результатам LLM (AC 3.1)."""
     matchers = build_matchers(dictionary)
     skill_counts: Counter[str] = Counter()
     unmatched: Counter[str] = Counter()
     unmatched_names: dict[str, str] = {}
     full_count = 0
-
     for vacancy in vacancies:
         detail = load_detail(str(vacancy["id"]))
         text, is_full = vacancy_text(vacancy, detail)
         full_count += is_full
-        key_skills = (detail or {}).get("key_skills") or []
-
         skills = match_skills(text, matchers)
-        for key_skill in key_skills:
+        for key_skill in (detail or {}).get("key_skills") or []:
             found = match_skills(key_skill, matchers)
             skills |= found
             if not found:
@@ -306,7 +270,291 @@ def build_report(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str
                 unmatched_names.setdefault(key, key_skill.strip())
         skill_counts.update(skills)  # навык учитывается не более одного раза на вакансию
 
-    total = len(vacancies)
+    llm_counts: Counter[str] = Counter()
+    llm_names: dict[str, Counter[str]] = {}
+    llm_models: Counter[str] = Counter()
+    llm_processed = 0
+    for vacancy in vacancies if llm_cache is not None else []:
+        entry = llm_cache.get(str(vacancy["id"]))
+        if not entry:
+            continue
+        llm_processed += 1
+        llm_models[f"{entry['provider']} / {entry['model']}"] += 1
+        found_llm: set[str] = set()
+        for raw in entry["skills"]:
+            name = _normalize_llm_skill(raw)
+            if not name or match_skills(name, matchers):
+                continue  # навык уже учтён словарём — в разделе LLM его не показываем
+            key = name.lower()
+            found_llm.add(key)
+            llm_names.setdefault(key, Counter())[name] += 1
+        llm_counts.update(found_llm)
+
+    return {
+        "total": len(vacancies), "full_count": full_count, "skill_counts": skill_counts,
+        "unmatched": unmatched, "unmatched_names": unmatched_names,
+        "llm_counts": llm_counts, "llm_processed": llm_processed, "llm_models": llm_models,
+        "llm_names": {key: names.most_common(1)[0][0] for key, names in llm_names.items()},
+    }
+
+
+# --- Сравнение с резюме (AC 3.3) ---
+
+CV_INSTRUCTION = """Ты помогаешь бизнес/системному аналитику сравнить своё резюме с требованиями рынка.
+Для КАЖДОГО навыка из списка определи, есть ли он в резюме, и верни статус:
+- "skills_section" — навык указан в разделе «Навыки» резюме (с учётом синонимов и вариантов написания:
+  Postgres = PostgreSQL, Confluence = Atlassian Confluence, Excel = MS Excel);
+- "experience_only" — навык явно упомянут в опыте работы, обязанностях или «Обо мне», но НЕ в разделе «Навыки»;
+- "missing" — в резюме навыка нет.
+
+Правила:
+- Засчитывай только явные упоминания навыка или его синонима. Не делай выводов из общих фраз
+  (опыт в EdTech не означает знания Kafka).
+- quote — ДОСЛОВНЫЙ короткий фрагмент резюме (до 100 символов), подтверждающий навык; для "missing" — пустая строка.
+- Верни результат по каждому навыку из списка, название навыка — как в списке. Формат — JSON."""
+
+CV_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skills": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "skill": {"type": "string"},
+                    "status": {"type": "string", "enum": ["skills_section", "experience_only", "missing"]},
+                    "quote": {"type": "string"},
+                },
+                "required": ["skill", "status", "quote"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["skills"],
+    "additionalProperties": False,
+}
+
+CV_STATUS_LABELS = {
+    "skills_section": ("Да", "✅ Matches"),
+    "experience_only": ("Только в опыте", "🟡 Добавить в «Навыки»"),
+    "missing": ("Нет", "⚠️ Gap to address"),
+}
+
+
+def cv_candidates(stats: dict[str, Any]) -> list[dict[str, Any]]:
+    """Навыки для сравнения с резюме: словарные с долей ≥ CV_MIN_SHARE и найденные LLM в ≥ CV_MIN_LLM вакансиях."""
+    total = stats["total"]
+    candidates = [{"skill": skill, "share": count / total, "source": "dictionary"}
+                  for skill, count in stats["skill_counts"].most_common() if count / total >= CV_MIN_SHARE]
+    processed = stats["llm_processed"]
+    candidates += [{"skill": stats["llm_names"][key], "share": count / processed, "source": "llm"}
+                   for key, count in stats["llm_counts"].items() if count >= CV_MIN_LLM]
+    # При равной доле — по названию, чтобы порядок не зависел от случайного хэширования строк между запусками.
+    return sorted(candidates, key=lambda c: (-c["share"], c["skill"].lower()))
+
+
+def _normalize_text(text: str) -> str:
+    """Текст для сверки цитат: без markdown-разметки, в нижнем регистре, с одиночными пробелами."""
+    return re.sub(r"\s+", " ", re.sub(r"[*_#`>]", "", text)).strip().lower()
+
+
+def cv_skills_section(cv_text: str) -> Optional[str]:
+    """Раздел «Навыки» резюме: от заголовка «Навыки» до следующего заголовка того же или более высокого уровня."""
+    lines = cv_text.splitlines()
+    for i, line in enumerate(lines):
+        match = re.match(r"^(#+)\s*Навыки\s*$", line.strip(), re.IGNORECASE)
+        if not match:
+            continue
+        level = len(match.group(1))
+        end = next((j for j in range(i + 1, len(lines))
+                    if (m := re.match(r"^(#+)\s", lines[j].strip())) and len(m.group(1)) <= level), len(lines))
+        return "\n".join(lines[i + 1:end])
+    return None
+
+
+_QUOTE_SPLIT_RE = re.compile(r"[;,/()«»\"…]|\.\.\.")
+CV_STATUS_RANK = {"missing": 0, "experience_only": 1, "skills_section": 2}
+
+
+def _quote_found(quote: str, text_norm: str) -> bool:
+    """Цитата подтверждается, если каждый её фрагмент (между ; , / и т.п.) есть в тексте.
+
+    Модель на длинных списках склеивает цитату из несмежных пунктов («BPMN; Моделирование
+    бизнес-процессов»), поэтому дословного совпадения всей цитаты не требуем.
+    """
+    fragments = [f.strip() for f in _QUOTE_SPLIT_RE.split(_normalize_text(quote))]
+    fragments = [f for f in fragments if len(f) >= 2]
+    return bool(fragments) and all(f in text_norm for f in fragments)
+
+
+def verify_cv_results(items: list[dict[str, Any]], cv_text: str) -> tuple[list[dict[str, Any]], int]:
+    """Проверяет цитаты модели по тексту резюме, чтобы исключить выдуманные совпадения.
+
+    Цитата не найдена в резюме -> статус "missing" (засчитываем только подтверждённое).
+    Статус "skills_section", но цитата вне раздела «Навыки» -> "experience_only".
+    Возвращает проверенные результаты и число исправленных статусов.
+    """
+    cv_norm = _normalize_text(cv_text)
+    section = cv_skills_section(cv_text)
+    section_norm = _normalize_text(section) if section is not None else None
+    fixed = 0
+    checked = []
+    for item in items:
+        status, quote = item["status"], item.get("quote", "")
+        if status != "missing":
+            if not _quote_found(quote, cv_norm):
+                status, fixed = "missing", fixed + 1
+            elif status == "skills_section" and section_norm is not None and not _quote_found(quote, section_norm):
+                status, fixed = "experience_only", fixed + 1
+        checked.append({**item, "status": status, "quote": quote if status != "missing" else ""})
+    return checked, fixed
+
+
+def dictionary_cv_status(skill: str, dictionary: dict[str, list[str]], cv_text: str) -> tuple[str, str]:
+    """Статус навыка словаря в резюме по точному поиску с синонимами (как AC 3.1) и найденный фрагмент.
+
+    Раздел «Навыки» -> "skills_section", остальной текст -> "experience_only", нет -> "missing".
+    Для навыков вне словаря (найденных LLM) точного поиска нет -> "missing".
+    """
+    if skill not in dictionary:
+        return "missing", ""
+    (_, pattern), = build_matchers({skill: dictionary[skill]})
+    section = cv_skills_section(cv_text)
+    for text, status in ((section, "skills_section"), (cv_text, "experience_only")):
+        if text and (match := pattern.search(text)):
+            line = text[text.rfind("\n", 0, match.start()) + 1:].split("\n", 1)[0]
+            # Фрагмент — пункт списка между «;», в котором найден навык (раздел «Навыки» — одна строка через «;»).
+            fragment = next((part for part in line.split(";") if match.group(0) in part), line)
+            fragment = re.sub(r"[*_#]", "", fragment).strip()
+            return status, fragment if len(fragment) <= 100 else fragment[:97] + "..."
+    return "missing", ""
+
+
+def merge_cv_statuses(items: list[dict[str, Any]], dictionary: dict[str, list[str]],
+                      cv_text: str) -> list[dict[str, Any]]:
+    """Итоговый статус навыка — лучший из точного поиска по словарю и подтверждённого ответа LLM."""
+    merged = []
+    for item in items:
+        status, fragment = dictionary_cv_status(item["skill"], dictionary, cv_text)
+        if CV_STATUS_RANK[status] > CV_STATUS_RANK[item["status"]]:
+            merged.append({**item, "status": status, "quote": fragment})
+        else:
+            merged.append(item)
+    return merged
+
+
+def compare_with_cv(candidates: list[dict[str, Any]], dictionary: dict[str, list[str]],
+                    cv_path: Path = CV_PATH, cache_path: Path = CV_CACHE_PATH) -> dict[str, Any]:
+    """Сопоставляет навыки рынка с резюме (AC 3.3, NFR-2): точный поиск по словарю + LLM из cv_processing.
+
+    LLM находит навыки вне словаря и нестандартные формулировки; её цитаты проверяются по резюме.
+    Ответ LLM кэшируется по отпечатку (резюме + список навыков + модель): пока они не меняются,
+    повторный analyze к LLM не обращается. Точный поиск по словарю выполняется при каждом запуске.
+    """
+    cv_text = cv_path.read_text(encoding="utf-8")
+    settings = get_settings("cv_processing")
+    skills = [c["skill"] for c in candidates]
+    fingerprint = hashlib.sha256(json.dumps([CV_CACHE_VERSION, cv_text, sorted(skills), settings.provider, settings.model],
+                                            ensure_ascii=False).encode("utf-8")).hexdigest()
+    cache = load_llm_cache(cache_path)
+    if cache.get("fingerprint") == fingerprint:
+        logger.info("Сравнение с резюме: резюме и список навыков не менялись, используется кэш")
+        return _finalize_cv_result(cache, dictionary, cv_text)
+
+    logger.info("Сравнение с резюме: %d навыков, LLM %s/%s", len(skills), settings.provider, settings.model)
+    text = f"## Список навыков\n" + "\n".join(f"- {s}" for s in skills) + f"\n\n## Резюме\n{cv_text}"
+    answer = ask_json("cv_processing", CV_INSTRUCTION, text, CV_SCHEMA)
+
+    by_skill = {str(item.get("skill", "")).strip().lower(): item for item in answer["skills"]}
+    items = []
+    for skill in skills:
+        item = by_skill.get(skill.lower())
+        if item is None:
+            logger.warning("LLM не вернула результат по навыку «%s» — считаю его отсутствующим", skill)
+            item = {"status": "missing", "quote": ""}
+        status = item.get("status") if item.get("status") in CV_STATUS_LABELS else "missing"
+        items.append({"skill": skill, "status": status, "quote": str(item.get("quote", ""))})
+
+    # В кэше — сырой ответ LLM: проверка цитат и точный поиск по словарю выполняются при каждом запуске.
+    raw = {"fingerprint": fingerprint, "provider": settings.provider, "model": settings.model,
+           "processed_at": datetime.now().astimezone().isoformat(timespec="seconds"), "items": items}
+    save_llm_cache(raw, cache_path)
+    return _finalize_cv_result(raw, dictionary, cv_text)
+
+
+def _finalize_cv_result(raw: dict[str, Any], dictionary: dict[str, list[str]], cv_text: str) -> dict[str, Any]:
+    """Проверяет цитаты LLM по резюме и объединяет с точным поиском по словарю."""
+    items, fixed = verify_cv_results(raw["items"], cv_text)
+    if fixed:
+        logger.warning("Сравнение с резюме: исправлено %d ответов LLM (цитата не найдена в резюме "
+                       "или найдена вне раздела «Навыки»)", fixed)
+    return {**raw, "fixed": fixed, "items": merge_cv_statuses(items, dictionary, cv_text)}
+
+
+# --- Отчёт ---
+
+def _llm_section(stats: dict[str, Any], llm_error: Optional[str]) -> list[str]:
+    """Раздел отчёта с навыками вне словаря, найденными LLM (AC 3.1)."""
+    lines = ["", f"## Навыки вне словаря, найденные LLM (топ-{TOP_LLM})", ""]
+    if llm_error:
+        lines += [f"> [!warning] Обработка LLM прервана: {llm_error}. Показаны результаты из кэша.", ""]
+    processed = stats["llm_processed"]
+    if not processed:
+        return lines + ["Нет вакансий, обработанных LLM (нужны полные описания — команда `fetch`)."]
+
+    lines += [f"> [!info] Получено моделью {', '.join(f'`{m}`' for m in stats['llm_models'])} по {processed} из "
+              f"{stats['total']} вакансий (только с полным описанием). Это интерпретация модели, а не точный "
+              "поиск: частые навыки — кандидаты на пополнение словаря.", "",
+              "| # | Навык | Вакансий | Доля |", "|---|---|---|---|"]
+    top = sorted(stats["llm_counts"].items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_LLM]
+    for rank, (key, count) in enumerate(top, start=1):
+        lines.append(f"| {rank} | {stats['llm_names'][key]} | {count} | {count / processed:.0%} |")
+    return lines
+
+
+def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, Any]],
+                cv_note: Optional[str]) -> list[str]:
+    """Раздел отчёта «Сравнение с резюме» (AC 3.3)."""
+    lines = ["", "## Сравнение с резюме", ""]
+    if cv_result is None:
+        return lines + [f"> [!warning] {cv_note}"]
+
+    share = {c["skill"]: c for c in candidates}
+    items = [i for i in cv_result["items"] if i["skill"] in share]
+    by_status = Counter(i["status"] for i in items)
+    total_share = sum(share[i["skill"]]["share"] for i in items) or 1
+    covered_share = sum(share[i["skill"]]["share"] for i in items if i["status"] != "missing")
+    lines += [
+        f"> [!info] Сопоставлено моделью `{cv_result['provider']} / {cv_result['model']}` "
+        f"({cv_result['processed_at'][:16].replace('T', ' ')}). Навыки: из словаря с долей ≥ {CV_MIN_SHARE:.0%} "
+        f"и найденные LLM в ≥ {CV_MIN_LLM} вакансиях (помечены \\*). Навыки словаря ищутся в резюме точно "
+        "(с синонимами), LLM дополняет нестандартные формулировки; каждое совпадение подтверждено фрагментом резюме"
+        + (f"; {cv_result['fixed']} ответов LLM исправлено проверкой (цитата не найдена в резюме или найдена "
+           "вне раздела «Навыки»)." if cv_result["fixed"] else "."),
+        "",
+        f"**Итого:** {len(items)} навыков — ✅ {by_status['skills_section']} в разделе «Навыки», "
+        f"🟡 {by_status['experience_only']} только в опыте, ⚠️ {by_status['missing']} пробелов. "
+        f"Покрытие с учётом частоты на рынке — **{covered_share / total_share:.0%}**.",
+        "",
+        "| Навык | Частота на рынке | Наличие в резюме | Статус | Где в резюме |",
+        "|---|---|---|---|---|",
+    ]
+    for item in items:
+        c = share[item["skill"]]
+        presence, status = CV_STATUS_LABELS[item["status"]]
+        quote = item["quote"].replace("|", "/").replace("\n", " ")
+        name = item["skill"] + (" \\*" if c["source"] == "llm" else "")
+        lines.append(f"| {name} | {c['share']:.0%} | {presence} | {status} | {f'«{quote}»' if quote else '—'} |")
+    return lines
+
+
+def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacancies: list[dict[str, Any]],
+                 files: list[Path], days: Optional[int], area: Optional[str], use_llm: bool,
+                 llm_error: Optional[str] = None, candidates: Optional[list[dict[str, Any]]] = None,
+                 cv_result: Optional[dict[str, Any]] = None, cv_note: Optional[str] = None) -> str:
+    """Формирует Markdown-отчёт (AC 3.2): топ навыков, раздел LLM (AC 3.1), сравнение с резюме (AC 3.3)."""
+    total, full_count = stats["total"], stats["full_count"]
+    skill_counts, unmatched = stats["skill_counts"], stats["unmatched"]
     dates = [d for v in vacancies if (d := _published(v))]
     filters = []
     if area:
@@ -323,6 +571,8 @@ def build_report(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str
         f"- **Период публикации:** {_format_date(min(dates, default=None))} — {_format_date(max(dates, default=None))}",
         f"- **Вакансий:** {total} (по полному описанию — {full_count}, по сниппетам — {total - full_count})",
     ]
+    if use_llm:
+        lines.append("- **Сравнение с резюме:** см. раздел [[#Сравнение с резюме]]")
     if total and full_count < total:
         lines.append("")
         lines.append(f"> [!warning] {total - full_count} вакансий без полного описания: в сниппетах часть "
@@ -341,20 +591,22 @@ def build_report(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str
                   "Кандидаты на пополнение `analytical_skills_dictionary` в `profile/preferences.json`.", "",
                   "| Навык | Вакансий |", "|---|---|"]
         for key, count in unmatched.most_common(TOP_UNMATCHED):
-            lines.append(f"| {unmatched_names[key]} | {count} |")
+            lines.append(f"| {stats['unmatched_names'][key]} | {count} |")
 
-    if llm_cache is not None:
-        lines += _llm_section(vacancies, matchers, llm_cache, llm_error)
+    if use_llm:
+        lines += _llm_section(stats, llm_error)
+        lines += _cv_section(candidates or [], cv_result, cv_note)
 
     return "\n".join(lines) + "\n"
 
 
 def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: Optional[str] = None,
-            use_llm: bool = True, llm_refresh: bool = False) -> tuple[Path, int, Optional[str]]:
+            use_llm: bool = True, llm_refresh: bool = False) -> tuple[Path, int, list[str]]:
     """Формирует reports/market_skills_summary.md.
 
-    use_llm=False — только словарь (--no-llm); llm_refresh — заново обработать вакансии из кэша LLM.
-    Возвращает путь к отчёту, число вакансий и текст ошибки LLM (если этап был прерван).
+    use_llm=False — только словарь (--no-llm), без LLM и сравнения с резюме;
+    llm_refresh — заново обработать вакансии из кэша LLM.
+    Возвращает путь к отчёту, число вакансий и предупреждения (прерванные LLM-этапы).
     """
     dictionary = normalize_dictionary(load_preferences()["analytical_skills_dictionary"])
     vacancies, files = load_vacancies(data_path)
@@ -363,9 +615,27 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
         raise ValueError("После применения фильтров не осталось вакансий")
     logger.info("Анализирую %d вакансий, словарь — %d навыков", len(vacancies), len(dictionary))
 
+    warnings: list[str] = []
     llm_cache, llm_error = extract_llm_skills(vacancies, llm_refresh) if use_llm else (None, None)
+    if llm_error:
+        warnings.append(f"LLM-анализ вакансий прерван: {llm_error}")
+    stats = collect_stats(vacancies, dictionary, llm_cache)
+
+    candidates, cv_result, cv_note = None, None, None
+    if use_llm:
+        candidates = cv_candidates(stats)
+        if not CV_PATH.exists():
+            cv_note = f"Файл резюме {CV_PATH.relative_to(PROJECT_ROOT)} не найден — сравнение пропущено."
+        else:
+            try:
+                cv_result = compare_with_cv(candidates, dictionary)
+            except LLMError as exc:
+                cv_note = f"Сравнение с резюме не выполнено: {exc}"
+                warnings.append(cv_note)
+
     REPORTS_DIR.mkdir(exist_ok=True)
-    report = build_report(vacancies, dictionary, files, days, area, llm_cache, llm_error)
+    report = build_report(stats, dictionary, vacancies, files, days, area, use_llm,
+                          llm_error, candidates, cv_result, cv_note)
     REPORT_PATH.write_text(report, encoding="utf-8")
     logger.info("Отчёт сохранён в %s", REPORT_PATH)
-    return REPORT_PATH, len(vacancies), llm_error
+    return REPORT_PATH, len(vacancies), warnings
