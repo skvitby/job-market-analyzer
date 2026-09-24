@@ -29,6 +29,8 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "SQL", "UML", "BPMN", "REST API", "JSON",
         "Swagger", "Postman", "Python", "Agile", "Scrum",
     ],
+    # AC 1.2: навыки, которые не показываются в отчёте (не целевые для пользователя).
+    "excluded_skills": [],
     "llm_preferences": {
         "cover_letter_language": "ru",
         "tone": "professional",

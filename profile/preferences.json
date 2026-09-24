@@ -111,6 +111,7 @@
     "CRM": [],
     "ERP": []
   },
+  "excluded_skills": ["1С", "1C", "SAP"],
   "llm_preferences": {
     "cover_letter_language": "ru",
     "tone": "professional_and_enthusiastic",

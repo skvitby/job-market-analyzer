@@ -248,10 +248,32 @@ def _format_date(value: Optional[datetime]) -> str:
 
 
 
+def excluded_matcher(excluded: list[str]) -> Optional[re.Pattern]:
+    """Регулярное выражение для исключённых навыков (excluded_skills, AC 1.2) или None, если список пуст.
+
+    Поиск тот же, что у словаря: «1С» отсекает и «1С программирование», «SAP» — и «SAP BW».
+    """
+    terms = [str(t) for t in excluded or [] if str(t).strip()]
+    if not terms:
+        return None
+    (_, pattern), = build_matchers({terms[0]: terms[1:]})
+    return pattern
+
+
+def _is_excluded(name: str, excluded: Optional[re.Pattern]) -> bool:
+    return bool(excluded and excluded.search(name))
+
+
 def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[str]],
-                  llm_cache: Optional[dict[str, dict[str, Any]]]) -> dict[str, Any]:
-    """Считает частоты навыков: по словарю и key_skills (AC 3.2) и по результатам LLM (AC 3.1)."""
-    matchers = build_matchers(dictionary)
+                  llm_cache: Optional[dict[str, dict[str, Any]]],
+                  excluded: Optional[re.Pattern] = None) -> dict[str, Any]:
+    """Считает частоты навыков: по словарю и key_skills (AC 3.2) и по результатам LLM (AC 3.1).
+
+    excluded — исключённые навыки (excluded_skills): не попадают ни в один раздел отчёта
+    и в сравнение с резюме.
+    """
+    matchers = [(skill, pattern) for skill, pattern in build_matchers(dictionary)
+                if not _is_excluded(skill, excluded)]
     skill_counts: Counter[str] = Counter()
     unmatched: Counter[str] = Counter()
     unmatched_names: dict[str, str] = {}
@@ -264,7 +286,7 @@ def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[st
         for key_skill in (detail or {}).get("key_skills") or []:
             found = match_skills(key_skill, matchers)
             skills |= found
-            if not found:
+            if not found and not _is_excluded(key_skill, excluded):
                 key = key_skill.strip().lower()
                 unmatched[key] += 1
                 unmatched_names.setdefault(key, key_skill.strip())
@@ -283,8 +305,8 @@ def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[st
         found_llm: set[str] = set()
         for raw in entry["skills"]:
             name = _normalize_llm_skill(raw)
-            if not name or match_skills(name, matchers):
-                continue  # навык уже учтён словарём — в разделе LLM его не показываем
+            if not name or match_skills(name, matchers) or _is_excluded(name, excluded):
+                continue  # навык уже учтён словарём или исключён — в разделе LLM его не показываем
             key = name.lower()
             found_llm.add(key)
             llm_names.setdefault(key, Counter())[name] += 1
@@ -608,7 +630,9 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     llm_refresh — заново обработать вакансии из кэша LLM.
     Возвращает путь к отчёту, число вакансий и предупреждения (прерванные LLM-этапы).
     """
-    dictionary = normalize_dictionary(load_preferences()["analytical_skills_dictionary"])
+    prefs = load_preferences()
+    dictionary = normalize_dictionary(prefs["analytical_skills_dictionary"])
+    excluded = excluded_matcher(prefs["excluded_skills"])
     vacancies, files = load_vacancies(data_path)
     vacancies = filter_vacancies(vacancies, days, area)
     if not vacancies:
@@ -619,7 +643,7 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     llm_cache, llm_error = extract_llm_skills(vacancies, llm_refresh) if use_llm else (None, None)
     if llm_error:
         warnings.append(f"LLM-анализ вакансий прерван: {llm_error}")
-    stats = collect_stats(vacancies, dictionary, llm_cache)
+    stats = collect_stats(vacancies, dictionary, llm_cache, excluded)
 
     candidates, cv_result, cv_note = None, None, None
     if use_llm:
