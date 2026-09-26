@@ -22,6 +22,11 @@ app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакан
 def main() -> None:
     """Job Market Analyzer: сбор и анализ вакансий BA/SA."""
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    # Технические строки HTTP-клиента («HTTP Request: POST … 200 OK») пользователю не нужны (Z-10);
+    # предупреждения и ошибки, а также сообщения SDK о повторах запросов остаются.
+    # Текущие anthropic и openai работают на httpx2; httpx — для их более старых версий.
+    for http_logger in ("httpx", "httpx2"):
+        logging.getLogger(http_logger).setLevel(logging.WARNING)
 
 
 @app.command()
