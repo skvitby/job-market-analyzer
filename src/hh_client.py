@@ -21,6 +21,7 @@ from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 from src.config import PROJECT_ROOT, load_preferences
+from src.text_utils import VACANCY, count
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,7 @@ def _collect(client: HHClient, params: list[tuple[str, Any]], split_keys: list[s
         if parts:
             logger.info("Найдено %d > %d, разбиваю поиск по параметру %s", found, MAX_RESULTS, key)
             return [item for part in parts for item in _collect(client, part, split_keys[i + 1:])]
-    logger.warning("Найдено %d вакансий, HH отдаёт только первые %d. Сузьте фильтры.", found, MAX_RESULTS)
+    logger.warning("По запросу найдено: %s, HH отдаёт только первые %d. Сузьте фильтры.", count(found, *VACANCY), MAX_RESULTS)
     return items
 
 
@@ -346,8 +347,8 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
     # или попавшие в запас в 1 час на стыке с прошлой выгрузкой.
     known_ids = set(_all_vacancy_ids())
     new_count = sum(str(record["id"]) not in known_ids for record in records)
-    logger.info("Найдено %d вакансий: новых %d, уже известных %d (есть в прошлых выгрузках)",
-                len(records), new_count, len(records) - new_count)
+    logger.info("Результат поиска: %s — новых %d, уже известных %d (есть в прошлых выгрузках)",
+                count(len(records), *VACANCY), new_count, len(records) - new_count)
 
     DATA_DIR.mkdir(exist_ok=True)
     path = DATA_DIR / f"raw_vacancies_{now:%Y%m%d_%H%M%S}.json"
@@ -361,7 +362,7 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
         "vacancies": records,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    logger.info("Сохранено %d вакансий в %s", len(records), path)
+    logger.info("Выгрузка сохранена: %s → %s", count(len(records), *VACANCY), path)
     return path
 
 
@@ -425,8 +426,8 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
     client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
     if region_ids:
         areas = (areas or set()) | area_names(client, region_ids)
-        logger.info("Описания только для регионов %s: %d населённых пунктов в справочнике HH",
-                    ", ".join(map(str, region_ids)), len(areas))
+        logger.info("Описания только для регионов %s: %s в справочнике HH", ", ".join(map(str, region_ids)),
+                    count(len(areas), "населённый пункт", "населённых пункта", "населённых пунктов"))
 
     cached = _cached_detail_ids()
     pending = [vid for vid in _all_vacancy_ids(areas) if vid not in cached]
@@ -437,7 +438,7 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
         return 0, 0
 
     DETAILS_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info("Загружаю полные описания: %d вакансий (~%.0f мин)", len(pending), len(pending) * client.delay / 60)
+    logger.info("Загружаю полные описания: %s (~%.0f мин)", count(len(pending), *VACANCY), len(pending) * client.delay / 60)
 
     loaded = failed = failed_in_row = 0
     started = time.monotonic()

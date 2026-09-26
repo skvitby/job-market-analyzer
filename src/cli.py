@@ -13,6 +13,7 @@ import typer
 from src.analyzer import analyze as run_analysis
 from src.hh_client import HHApiError, fetch_details, fetch_vacancies
 from src.llm_service import LLMError
+from src.text_utils import VACANCY, count
 
 app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакансий BA/SA.", no_args_is_help=True)
 
@@ -65,8 +66,8 @@ def fetch(
         raise typer.Exit(code=1)
 
     payload = json.loads(path.read_text(encoding="utf-8"))
-    typer.secho(f"Готово: {payload['count']} вакансий сохранено в {path} "
-                f"(новых {payload.get('new_count', '—')})", fg=typer.colors.GREEN)
+    typer.secho(f"Готово: {count(payload['count'], *VACANCY)} (новых {payload.get('new_count', '—')}) → {path}",
+                fg=typer.colors.GREEN)
 
     if no_details:
         return
@@ -95,13 +96,13 @@ def analyze(
     затем навыки рынка сравниваются с profile/my_cv.md через LLM из llm_providers.cv_processing (AC 3.3).
     """
     try:
-        path, count, warnings = run_analysis(data, days, area, use_llm=not no_llm, llm_refresh=llm_refresh)
+        path, total, warnings = run_analysis(data, days, area, use_llm=not no_llm, llm_refresh=llm_refresh)
     except (FileNotFoundError, ValueError, LLMError) as exc:
         typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
     for warning in warnings:
         typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
-    typer.secho(f"Готово: проанализировано {count} вакансий, отчёт — {path}", fg=typer.colors.GREEN)
+    typer.secho(f"Готово: в отчёте {count(total, *VACANCY)} → {path}", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":

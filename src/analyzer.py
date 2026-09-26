@@ -19,6 +19,7 @@ from typing import Any, Optional
 from src.config import PROJECT_ROOT, load_preferences
 from src.hh_client import DATA_DIR, DETAILS_DIR
 from src.llm_service import LLMError, ask_json, get_settings
+from src.text_utils import SKILL, VACANCY, count, plural
 
 logger = logging.getLogger(__name__)
 
@@ -214,8 +215,8 @@ def extract_llm_skills(vacancies: list[dict[str, Any]], refresh: bool = False,
         return cache, None
 
     batches = [pending[i:i + settings.batch_size] for i in range(0, len(pending), settings.batch_size)]
-    logger.info("LLM %s/%s: отправляю %d вакансий, %d запросов",
-                settings.provider, settings.model, len(pending), len(batches))
+    logger.info("LLM %s/%s: отправляю %s, %s", settings.provider, settings.model,
+                count(len(pending), *VACANCY), count(len(batches), "запрос", "запроса", "запросов"))
     for n, batch in enumerate(batches, start=1):
         text = "\n\n".join(_llm_payload(vacancy, description) for vacancy, description in batch)
         try:
@@ -513,7 +514,7 @@ def compare_with_cv(candidates: list[dict[str, Any]], dictionary: dict[str, list
         logger.info("Сравнение с резюме: резюме и список навыков не менялись, используется кэш")
         return _finalize_cv_result(cache, dictionary, cv_text)
 
-    logger.info("Сравнение с резюме: %d навыков, LLM %s/%s", len(skills), settings.provider, settings.model)
+    logger.info("Сравнение с резюме: %s, LLM %s/%s", count(len(skills), *SKILL), settings.provider, settings.model)
     text = f"## Список навыков\n" + "\n".join(f"- {s}" for s in skills) + f"\n\n## Резюме\n{cv_text}"
     answer = ask_json("cv_processing", CV_INSTRUCTION, text, CV_SCHEMA)
 
@@ -543,7 +544,7 @@ def _finalize_cv_result(raw: dict[str, Any], dictionary: dict[str, list[str]], c
     items, rejected = merge_cv_statuses(items, dictionary, cv_text)
     fixed += rejected
     if fixed:
-        logger.warning("Сравнение с резюме: не засчитано или понижено %d ответов LLM по навыкам вне словаря "
+        logger.warning("Сравнение с резюме: ответов LLM по навыкам вне словаря не засчитано или понижено — %d "
                        "(цитата не найдена в резюме, не подтверждает навык или найдена вне раздела «Навыки»)", fixed)
     return {**raw, "fixed": fixed, "items": items}
 
@@ -560,7 +561,7 @@ def _llm_section(stats: dict[str, Any], llm_error: Optional[str]) -> list[str]:
         return lines + ["Нет вакансий, обработанных LLM (нужны полные описания — команда `fetch`)."]
 
     lines += [f"> [!info] Получено моделью {', '.join(f'`{m}`' for m in stats['llm_models'])} по {processed} из "
-              f"{stats['total']} вакансий (только с полным описанием). Это интерпретация модели, а не точный "
+              f"{stats['total']} {plural(stats['total'], 'вакансии', 'вакансий', 'вакансий')} (только с полным описанием). Это интерпретация модели, а не точный "
               "поиск: частые навыки — кандидаты на пополнение словаря.", "",
               "| # | Навык | Вакансий | Доля |", "|---|---|---|---|"]
     top = sorted(stats["llm_counts"].items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_LLM]
@@ -584,13 +585,15 @@ def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, 
     lines += [
         f"> [!info] Сопоставлено моделью `{cv_result['provider']} / {cv_result['model']}` "
         f"({cv_result['processed_at'][:16].replace('T', ' ')}). Навыки: из словаря с долей ≥ {CV_MIN_SHARE:.0%} "
-        f"и найденные LLM в ≥ {CV_MIN_LLM} вакансиях (помечены \\*). Навыки словаря ищутся в резюме только точно "
+        f"и найденные LLM в ≥ {CV_MIN_LLM} {plural(CV_MIN_LLM, 'вакансии', 'вакансиях', 'вакансиях')} (помечены \\*). Навыки словаря ищутся в резюме только точно "
         "(с синонимами); навыки \\* — по ответу LLM, если цитата содержит слово из названия навыка. Каждое совпадение "
         "подтверждено фрагментом резюме"
-        + (f"; {cv_result['fixed']} ответов LLM по навыкам \\* не засчитано или понижено проверкой." if cv_result["fixed"] else "."),
+        + (f"; ответов LLM по навыкам \\*, не засчитанных или пониженных проверкой, — {cv_result['fixed']}."
+           if cv_result["fixed"] else "."),
         "",
-        f"**Итого:** {len(items)} навыков — ✅ {by_status['skills_section']} в разделе «Навыки», "
-        f"🟡 {by_status['experience_only']} только в опыте, ⚠️ {by_status['missing']} пробелов. "
+        f"**Итого:** {count(len(items), *SKILL)} — ✅ {by_status['skills_section']} в разделе «Навыки», "
+        f"🟡 {by_status['experience_only']} только в опыте, "
+        f"⚠️ {count(by_status['missing'], 'пробел', 'пробела', 'пробелов')}. "
         f"Покрытие с учётом частоты на рынке — **{covered_share / total_share:.0%}**.",
         "",
         "| Навык | Частота на рынке | Наличие в резюме | Статус | Где в резюме |",
@@ -633,7 +636,7 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         lines.append("- **Сравнение с резюме:** см. раздел [[#Сравнение с резюме]]")
     if total and full_count < total:
         lines.append("")
-        lines.append(f"> [!warning] {total - full_count} вакансий без полного описания: в сниппетах часть "
+        lines.append(f"> [!warning] {count(total - full_count, *VACANCY)} без полного описания: в сниппетах часть "
                      "навыков обрезана, поэтому частоты могут быть занижены. Догрузите описания командой `fetch`.")
 
     lines += ["", "## Топ навыков", "", "| # | Навык | Вакансий | Доля |", "|---|---|---|---|"]
@@ -678,7 +681,7 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
             raise ValueError(f"Город «{area}» не найден в выгрузках. --area — название города, как в вакансиях HH, "
                              f"а не ID региона. Есть: {', '.join(f'{c} ({n})' for c, n in cities)}")
         raise ValueError("После применения фильтров не осталось вакансий")
-    logger.info("Анализирую %d вакансий, словарь — %d навыков", len(vacancies), len(dictionary))
+    logger.info("Анализирую %s, словарь — %s", count(len(vacancies), *VACANCY), count(len(dictionary), *SKILL))
 
     warnings: list[str] = []
     llm_cache, llm_error = extract_llm_skills(vacancies, llm_refresh) if use_llm else (None, None)
