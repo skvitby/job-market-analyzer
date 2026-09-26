@@ -625,7 +625,8 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         f"- **Сформирован:** {datetime.now():%d.%m.%Y %H:%M}",
         f"- **Источник:** {', '.join(Path(f).name for f in files)}",
         f"- **Фильтры:** {', '.join(filters) if filters else 'нет'}",
-        f"- **Период публикации:** {_format_date(min(dates, default=None))} — {_format_date(max(dates, default=None))}",
+        f"- **Период публикации (с учётом поднятий):** {_format_date(min(dates, default=None))} — "
+        f"{_format_date(max(dates, default=None))}",
         f"- **Вакансий:** {total} (по полному описанию — {full_count}, по сниппетам — {total - full_count})",
     ]
     if use_llm:

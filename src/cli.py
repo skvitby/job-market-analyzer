@@ -64,8 +64,9 @@ def fetch(
         typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)
 
-    count = json.loads(path.read_text(encoding="utf-8"))["count"]
-    typer.secho(f"Готово: {count} вакансий сохранено в {path}", fg=typer.colors.GREEN)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    typer.secho(f"Готово: {payload['count']} вакансий сохранено в {path} "
+                f"(новых {payload.get('new_count', '—')})", fg=typer.colors.GREEN)
 
     if no_details:
         return
@@ -83,7 +84,7 @@ def fetch(
 def analyze(
     data: Optional[Path] = typer.Option(None, "--data", exists=True, dir_okay=False,
                                         help="Один файл вакансий; по умолчанию объединяются все data/raw_vacancies_*.json"),
-    days: Optional[int] = typer.Option(None, "--days", min=1, help="Только вакансии, опубликованные за последние N дней"),
+    days: Optional[int] = typer.Option(None, "--days", min=1, help="Только вакансии, опубликованные или поднятые работодателем за последние N дней"),
     area: Optional[str] = typer.Option(None, "--area", help="Только вакансии города — название как в вакансиях HH, например \"Минск\" (не ID региона, в отличие от fetch --region)"),
     no_llm: bool = typer.Option(False, "--no-llm", help="Только поиск по словарю, без обращений к LLM"),
     llm_refresh: bool = typer.Option(False, "--llm-refresh", help="Заново обработать LLM вакансии, уже бывшие в кэше"),

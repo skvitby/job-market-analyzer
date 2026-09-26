@@ -342,6 +342,12 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
 
     items = _collect(client, params, split_keys=["area", "experience"])
     records = list({item["id"]: to_record(item) for item in items}.values())  # без дублей
+    # Новая вакансия — id, которого нет в прежних выгрузках (Z-5). Уже известные — поднятые работодателем
+    # или попавшие в запас в 1 час на стыке с прошлой выгрузкой.
+    known_ids = set(_all_vacancy_ids())
+    new_count = sum(str(record["id"]) not in known_ids for record in records)
+    logger.info("Найдено %d вакансий: новых %d, уже известных %d (есть в прошлых выгрузках)",
+                len(records), new_count, len(records) - new_count)
 
     DATA_DIR.mkdir(exist_ok=True)
     path = DATA_DIR / f"raw_vacancies_{now:%Y%m%d_%H%M%S}.json"
@@ -351,6 +357,7 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
         "date_from": date_from.isoformat(timespec="seconds") if date_from else None,
         "search_params": [[k, v] for k, v in params],
         "count": len(records),
+        "new_count": new_count,
         "vacancies": records,
     }
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
