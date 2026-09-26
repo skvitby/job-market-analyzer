@@ -121,20 +121,30 @@ def _published(vacancy: dict[str, Any]) -> Optional[datetime]:
         return None
 
 
-def load_vacancies(data_path: Optional[Path] = None) -> tuple[list[dict[str, Any]], list[Path]]:
+def load_vacancies(data_path: Optional[Path] = None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Загружает вакансии (AC 3.4).
 
     По умолчанию объединяет все data/raw_vacancies_*.json с дедупликацией по id:
     при повторах остаётся запись из самого свежего файла. data_path — один конкретный файл.
-    Возвращает вакансии и список прочитанных файлов.
+    Возвращает вакансии (у каждой в "_source" — имя файла, за которым она засчитана)
+    и сведения о прочитанных файлах: имя, время выгрузки, регионы, число вакансий.
     """
-    files = [data_path] if data_path else sorted(DATA_DIR.glob("raw_vacancies_*.json"))
-    if not files:
+    paths = [Path(data_path)] if data_path else sorted(DATA_DIR.glob("raw_vacancies_*.json"))
+    if not paths:
         raise FileNotFoundError("В data/ нет файлов raw_vacancies_*.json — сначала выполните fetch")
     vacancies: dict[str, dict[str, Any]] = {}
-    for path in files:
-        for vacancy in json.loads(Path(path).read_text(encoding="utf-8"))["vacancies"]:
-            vacancies[str(vacancy["id"])] = vacancy  # файлы по возрастанию времени — свежая запись перезаписывает
+    files = []
+    for path in paths:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        files.append({
+            "name": path.name,
+            "fetched_at": payload.get("fetched_at"),
+            "regions": [str(v) for k, v in payload.get("search_params") or [] if k == "area"],
+            "count": len(payload["vacancies"]),
+        })
+        for vacancy in payload["vacancies"]:
+            # Файлы по возрастанию времени — свежая запись перезаписывает и засчитывается за своим файлом.
+            vacancies[str(vacancy["id"])] = {**vacancy, "_source": path.name}
     return list(vacancies.values()), files
 
 
@@ -609,10 +619,14 @@ def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, 
 
 
 def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacancies: list[dict[str, Any]],
-                 files: list[Path], days: Optional[int], area: Optional[str], use_llm: bool,
+                 files: list[dict[str, Any]], days: Optional[int], area: Optional[str], use_llm: bool,
                  llm_error: Optional[str] = None, candidates: Optional[list[dict[str, Any]]] = None,
-                 cv_result: Optional[dict[str, Any]] = None, cv_note: Optional[str] = None) -> str:
-    """Формирует Markdown-отчёт (AC 3.2): топ навыков, раздел LLM (AC 3.1), сравнение с резюме (AC 3.3)."""
+                 cv_result: Optional[dict[str, Any]] = None, cv_note: Optional[str] = None,
+                 single_file: bool = False) -> str:
+    """Формирует Markdown-отчёт (AC 3.2): топ навыков, раздел LLM (AC 3.1), сравнение с резюме (AC 3.3).
+
+    files — сведения о файлах выгрузок; single_file — анализ одного файла (--data).
+    """
     total, full_count = stats["total"], stats["full_count"]
     skill_counts, unmatched = stats["skill_counts"], stats["unmatched"]
     dates = [d for v in vacancies if (d := _published(v))]
@@ -626,7 +640,7 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         "# Востребованные навыки BA/SA на рынке",
         "",
         f"- **Сформирован:** {datetime.now():%d.%m.%Y %H:%M}",
-        f"- **Источник:** {', '.join(Path(f).name for f in files)}",
+        f"- **Источник:** {_source_summary(files, single_file)}",
         f"- **Фильтры:** {', '.join(filters) if filters else 'нет'}",
         f"- **Период публикации (с учётом поднятий):** {_format_date(min(dates, default=None))} — "
         f"{_format_date(max(dates, default=None))}",
@@ -640,8 +654,8 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
                      "навыков обрезана, поэтому частоты могут быть занижены. Догрузите описания командой `fetch`.")
 
     lines += ["", "## Топ навыков", "", "| # | Навык | Вакансий | Доля |", "|---|---|---|---|"]
-    for rank, (skill, count) in enumerate(skill_counts.most_common(), start=1):
-        lines.append(f"| {rank} | {skill} | {count} | {count / total:.0%} |")
+    for rank, (skill, n) in enumerate(skill_counts.most_common(), start=1):
+        lines.append(f"| {rank} | {skill} | {n} | {n / total:.0%} |")
 
     missing = [skill for skill in dictionary if skill not in skill_counts]
     if missing:
@@ -651,14 +665,50 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         lines += ["", f"## key_skills HH вне словаря (топ-{TOP_UNMATCHED})", "",
                   "Кандидаты на пополнение `analytical_skills_dictionary` в `profile/preferences.json`.", "",
                   "| Навык | Вакансий |", "|---|---|"]
-        for key, count in unmatched.most_common(TOP_UNMATCHED):
-            lines.append(f"| {stats['unmatched_names'][key]} | {count} |")
+        for key, n in unmatched.most_common(TOP_UNMATCHED):
+            lines.append(f"| {stats['unmatched_names'][key]} | {n} |")
 
     if use_llm:
         lines += _llm_section(stats, llm_error)
         lines += _cv_section(candidates or [], cv_result, cv_note)
 
+    if not single_file:
+        lines += _files_section(files, vacancies)
+
     return "\n".join(lines) + "\n"
+
+
+def _fetch_time(file: dict[str, Any]) -> Optional[datetime]:
+    try:
+        return datetime.fromisoformat(file["fetched_at"])
+    except (TypeError, ValueError):
+        return None
+
+
+def _source_summary(files: list[dict[str, Any]], single_file: bool) -> str:
+    """Источник данных для шапки отчёта: имя файла (--data) или сводка по выгрузкам (Z-9)."""
+    if single_file:
+        return files[0]["name"]
+    times = [t for f in files if (t := _fetch_time(f))]
+    period = f" за {min(times):%d.%m}–{max(times):%d.%m.%Y}" if times else ""
+    return (f"{count(len(files), 'выгрузка', 'выгрузки', 'выгрузок')}{period} "
+            "(список — в конце отчёта, [[#Файлы выгрузок]])")
+
+
+def _files_section(files: list[dict[str, Any]], vacancies: list[dict[str, Any]]) -> list[str]:
+    """Свёрнутый блок со списком файлов выгрузок и их вкладом в отчёт — для отслеживаемости (Z-9).
+
+    «Из них в отчёте» — вакансии, прошедшие фильтры и засчитанные за этим файлом
+    (при повторах вакансия засчитывается за самым свежим файлом).
+    """
+    used = Counter(v.get("_source") for v in vacancies)
+    lines = ["", "## Файлы выгрузок", "", f"> [!note]- Файлы выгрузок ({len(files)})", ">",
+             "> | Файл | Выгрузка | Регионы | Вакансий в файле | Из них в отчёте |", "> |---|---|---|---|---|"]
+    for f in files:
+        fetched = _fetch_time(f)
+        lines.append(f"> | {f['name']} | {f'{fetched:%d.%m %H:%M}' if fetched else '—'} | "
+                     f"{', '.join(f['regions']) or '—'} | {f['count']} | {used.get(f['name'], 0)} |")
+    return lines
 
 
 def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: Optional[str] = None,
@@ -703,7 +753,7 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
 
     REPORTS_DIR.mkdir(exist_ok=True)
     report = build_report(stats, dictionary, vacancies, files, days, area, use_llm,
-                          llm_error, candidates, cv_result, cv_note)
+                          llm_error, candidates, cv_result, cv_note, single_file=data_path is not None)
     REPORT_PATH.write_text(report, encoding="utf-8")
     logger.info("Отчёт сохранён в %s", REPORT_PATH)
     return REPORT_PATH, len(vacancies), warnings
