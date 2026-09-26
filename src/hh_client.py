@@ -470,7 +470,8 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
         failed_in_row = 0
         if n % 10 == 0 or n == len(pending):
             left_sec = (time.monotonic() - started) / n * (len(pending) - n)
-            logger.info("Описания: %d/%d (осталось %s)", n, len(pending), duration(left_sec) if left_sec else "0")
+            status = f"осталось {duration(left_sec)}" if n < len(pending) else "готово"
+            logger.info("Описания: %d/%d (%s)", n, len(pending), status)
 
     logger.info("Описаний загружено: %d, ошибок: %d", loaded, failed)
     return loaded, failed
