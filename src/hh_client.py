@@ -21,7 +21,7 @@ from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 from src.config import PROJECT_ROOT, load_preferences
-from src.text_utils import VACANCY, count
+from src.text_utils import VACANCY, count, duration
 
 logger = logging.getLogger(__name__)
 
@@ -438,7 +438,7 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
         return 0, 0
 
     DETAILS_DIR.mkdir(parents=True, exist_ok=True)
-    logger.info("Загружаю полные описания: %s (~%.0f мин)", count(len(pending), *VACANCY), len(pending) * client.delay / 60)
+    logger.info("Загружаю полные описания: %s (%s)", count(len(pending), *VACANCY), duration(len(pending) * client.delay))
 
     loaded = failed = failed_in_row = 0
     started = time.monotonic()
@@ -469,8 +469,8 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
         loaded += 1
         failed_in_row = 0
         if n % 10 == 0 or n == len(pending):
-            left_min = (time.monotonic() - started) / n * (len(pending) - n) / 60
-            logger.info("Описания: %d/%d (осталось ~%.0f мин)", n, len(pending), left_min)
+            left_sec = (time.monotonic() - started) / n * (len(pending) - n)
+            logger.info("Описания: %d/%d (осталось %s)", n, len(pending), duration(left_sec) if left_sec else "0")
 
     logger.info("Описаний загружено: %d, ошибок: %d", loaded, failed)
     return loaded, failed

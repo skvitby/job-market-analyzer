@@ -22,5 +22,16 @@ def count(n: int, one: str, few: str, many: str) -> str:
     return f"{n} {plural(n, one, few, many)}"
 
 
+def duration(seconds: float) -> str:
+    """Примерная длительность для оценок времени: «меньше минуты», «~3 минуты», «~1 ч 15 мин»."""
+    if seconds < 60:
+        return "меньше минуты"
+    minutes = round(seconds / 60)
+    if minutes < 60:
+        return f"~{count(minutes, 'минута', 'минуты', 'минут')}"
+    hours, rest = divmod(minutes, 60)
+    return f"~{hours} ч {rest} мин" if rest else f"~{hours} ч"
+
+
 VACANCY = ("вакансия", "вакансии", "вакансий")
 SKILL = ("навык", "навыка", "навыков")
