@@ -668,9 +668,14 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     prefs = load_preferences()
     dictionary = normalize_dictionary(prefs["analytical_skills_dictionary"])
     excluded = excluded_matcher(prefs["excluded_skills"])
-    vacancies, files = load_vacancies(data_path)
-    vacancies = filter_vacancies(vacancies, days, area)
+    all_vacancies, files = load_vacancies(data_path)
+    vacancies = filter_vacancies(all_vacancies, days, area)
     if not vacancies:
+        if area and not filter_vacancies(all_vacancies, None, area):
+            # Город не найден вовсе — подсказываем, какие есть в данных (Z-3).
+            cities = Counter(v.get("area") or "—" for v in all_vacancies).most_common(10)
+            raise ValueError(f"Город «{area}» не найден в выгрузках. --area — название города, как в вакансиях HH, "
+                             f"а не ID региона. Есть: {', '.join(f'{c} ({n})' for c, n in cities)}")
         raise ValueError("После применения фильтров не осталось вакансий")
     logger.info("Анализирую %d вакансий, словарь — %d навыков", len(vacancies), len(dictionary))
 

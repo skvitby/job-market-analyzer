@@ -84,7 +84,7 @@ def analyze(
     data: Optional[Path] = typer.Option(None, "--data", exists=True, dir_okay=False,
                                         help="Один файл вакансий; по умолчанию объединяются все data/raw_vacancies_*.json"),
     days: Optional[int] = typer.Option(None, "--days", min=1, help="Только вакансии, опубликованные за последние N дней"),
-    area: Optional[str] = typer.Option(None, "--area", help="Только вакансии региона, например \"Минск\""),
+    area: Optional[str] = typer.Option(None, "--area", help="Только вакансии города — название как в вакансиях HH, например \"Минск\" (не ID региона, в отличие от fetch --region)"),
     no_llm: bool = typer.Option(False, "--no-llm", help="Только поиск по словарю, без обращений к LLM"),
     llm_refresh: bool = typer.Option(False, "--llm-refresh", help="Заново обработать LLM вакансии, уже бывшие в кэше"),
 ) -> None:
