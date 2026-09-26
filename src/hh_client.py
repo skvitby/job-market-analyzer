@@ -116,17 +116,42 @@ def build_search_params(settings: dict[str, Any], period_days: Optional[int] = N
     return params
 
 
-def last_fetch_time() -> Optional[datetime]:
-    """Время последней выгрузки по самому свежему файлу в data/ или None, если выгрузок не было."""
-    files = sorted(DATA_DIR.glob("raw_vacancies_*.json"))
-    if not files:
-        return None
-    try:
-        fetched_at = json.loads(files[-1].read_text(encoding="utf-8"))["fetched_at"]
-        return datetime.fromisoformat(fetched_at).astimezone()
-    except (ValueError, KeyError) as exc:
-        logger.warning("Не удалось прочитать fetched_at из %s (%s), беру время изменения файла", files[-1], exc)
-        return datetime.fromtimestamp(files[-1].stat().st_mtime).astimezone()
+def last_fetch_times() -> dict[int, datetime]:
+    """Время последней выгрузки по каждому региону: {ID региона HH: fetched_at} (AC 2.6).
+
+    Регионы выгрузки берутся из параметров поиска (area) в файле; для каждого региона —
+    самый свежий файл, в котором он участвовал в поиске.
+    """
+    times: dict[int, datetime] = {}
+    for path in sorted(DATA_DIR.glob("raw_vacancies_*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            logger.warning("Не удалось прочитать %s (%s), файл пропущен", path, exc)
+            continue
+        try:
+            fetched_at = datetime.fromisoformat(payload["fetched_at"]).astimezone()
+        except (ValueError, KeyError, TypeError) as exc:
+            logger.warning("Не удалось прочитать fetched_at из %s (%s), беру время изменения файла", path, exc)
+            fetched_at = datetime.fromtimestamp(path.stat().st_mtime).astimezone()
+        for key, value in payload.get("search_params") or []:
+            if key == "area":
+                region_id = int(value)
+                times[region_id] = max(times.get(region_id, fetched_at), fetched_at)
+    return times
+
+
+def last_fetch_time(region_ids: list[int]) -> tuple[Optional[datetime], dict[int, datetime]]:
+    """Момент, с которого искать, чтобы ни один из регионов не потерял вакансии (AC 2.6).
+
+    Возвращает самую раннюю из последних выгрузок по запрошенным регионам и сами эти даты.
+    None — хотя бы по одному региону выгрузок ещё не было (первый запуск для него).
+    """
+    known = last_fetch_times()
+    times = {region_id: known[region_id] for region_id in region_ids if region_id in known}
+    if not region_ids or len(times) < len(region_ids):
+        return None, times
+    return min(times.values()), times
 
 
 class HHClient:
@@ -294,16 +319,24 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
     """
     settings = {**load_preferences()["search_settings"], **(overrides or {})}
     now = datetime.now().astimezone()
-    last_fetch = last_fetch_time()
+    region_ids = [int(region["id"]) for region in _as_list(settings.get("regions"))]
+    last_fetch, region_times = last_fetch_time(region_ids)
+    history = ", ".join(f"{rid} — {t:%d.%m %H:%M}" for rid, t in region_times.items())
     if last_fetch is None:
-        # Первый запуск (AC 2.6): вакансии за initial_period_days дней.
+        # Первый запуск хотя бы для одного региона (AC 2.6): вакансии за initial_period_days дней.
         period_days, date_from = int(settings.get("initial_period_days") or 14), None
-        logger.info("Первый запуск: ищу вакансии за последние %d дн.", period_days)
+        new_regions = [str(rid) for rid in region_ids if rid not in region_times]
+        logger.info("Первая выгрузка для регионов %s: ищу вакансии за последние %d дн.%s",
+                    ", ".join(new_regions), period_days, f" (по остальным: {history})" if history else "")
     else:
-        # Повторный запуск: с момента прошлой выгрузки, но не глубже, чем позволяет HH.
+        # Повторный запуск: с самой ранней из последних выгрузок по регионам, но не глубже, чем позволяет HH.
         period_days = None
-        date_from = max(last_fetch - FETCH_OVERLAP, now - timedelta(days=MAX_PERIOD_DAYS))
-        logger.info("Ищу вакансии с %s (прошлая выгрузка %s)", f"{date_from:%d.%m %H:%M}", f"{last_fetch:%d.%m %H:%M}")
+        earliest = now - timedelta(days=MAX_PERIOD_DAYS)
+        date_from = max(last_fetch - FETCH_OVERLAP, earliest)
+        if last_fetch - FETCH_OVERLAP < earliest:
+            logger.warning("Прошлая выгрузка была более %d дней назад: вакансии старше %s HH уже не отдаёт",
+                           MAX_PERIOD_DAYS, f"{earliest:%d.%m}")
+        logger.info("Ищу вакансии с %s (последние выгрузки по регионам: %s)", f"{date_from:%d.%m %H:%M}", history)
     params = build_search_params(settings, period_days, date_from)
     client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
 
