@@ -455,17 +455,44 @@ def dictionary_cv_status(skill: str, dictionary: dict[str, list[str]], cv_text: 
     return "missing", ""
 
 
+_SKILL_WORD_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]+")
+
+
+def quote_mentions_skill(skill: str, quote: str) -> bool:
+    """Цитата подтверждает навык, если в ней есть хотя бы одно слово из названия навыка (D-2).
+
+    Длинные слова (от 4 букв) сравниваются по основе — первым 6 буквам, чтобы учитывались
+    падежные формы («Интеграции» ← «интеграциям»); короткие (ПО, БД, ERP) — целым словом.
+    """
+    quote_low = quote.lower()
+    for word in _SKILL_WORD_RE.findall(skill.lower()):
+        if len(word) >= 4 and word[:6] in quote_low:
+            return True
+        if len(word) < 4 and re.search(rf"(?<!\w){re.escape(word)}(?!\w)", quote_low):
+            return True
+    return False
+
+
 def merge_cv_statuses(items: list[dict[str, Any]], dictionary: dict[str, list[str]],
-                      cv_text: str) -> list[dict[str, Any]]:
-    """Итоговый статус навыка — лучший из точного поиска по словарю и подтверждённого ответа LLM."""
-    merged = []
+                      cv_text: str) -> tuple[list[dict[str, Any]], int]:
+    """Итоговый статус навыка в резюме (AC 3.3, исправление D-2).
+
+    Навыки словаря — только точный поиск по резюме с синонимами: ответ LLM для них не учитывается,
+    поэтому их статус стабилен и не зависит от догадок модели. Навыки вне словаря (найденные LLM) —
+    ответ LLM, если цитата содержит слово из названия навыка; иначе навык считается отсутствующим.
+    Возвращает итоговые статусы и число отклонённых ответов LLM по навыкам вне словаря.
+    """
+    merged, rejected = [], 0
     for item in items:
-        status, fragment = dictionary_cv_status(item["skill"], dictionary, cv_text)
-        if CV_STATUS_RANK[status] > CV_STATUS_RANK[item["status"]]:
+        if item["skill"] in dictionary:
+            status, fragment = dictionary_cv_status(item["skill"], dictionary, cv_text)
             merged.append({**item, "status": status, "quote": fragment})
+        elif item["status"] != "missing" and not quote_mentions_skill(item["skill"], item["quote"]):
+            merged.append({**item, "status": "missing", "quote": ""})
+            rejected += 1
         else:
             merged.append(item)
-    return merged
+    return merged, rejected
 
 
 def compare_with_cv(candidates: list[dict[str, Any]], dictionary: dict[str, list[str]],
@@ -509,11 +536,16 @@ def compare_with_cv(candidates: list[dict[str, Any]], dictionary: dict[str, list
 
 def _finalize_cv_result(raw: dict[str, Any], dictionary: dict[str, list[str]], cv_text: str) -> dict[str, Any]:
     """Проверяет цитаты LLM по резюме и объединяет с точным поиском по словарю."""
-    items, fixed = verify_cv_results(raw["items"], cv_text)
+    llm_items = [i for i in raw["items"] if i["skill"] not in dictionary]
+    verified, fixed = verify_cv_results(llm_items, cv_text)
+    verified_by_skill = {i["skill"]: i for i in verified}
+    items = [verified_by_skill.get(i["skill"], i) for i in raw["items"]]
+    items, rejected = merge_cv_statuses(items, dictionary, cv_text)
+    fixed += rejected
     if fixed:
-        logger.warning("Сравнение с резюме: исправлено %d ответов LLM (цитата не найдена в резюме "
-                       "или найдена вне раздела «Навыки»)", fixed)
-    return {**raw, "fixed": fixed, "items": merge_cv_statuses(items, dictionary, cv_text)}
+        logger.warning("Сравнение с резюме: не засчитано или понижено %d ответов LLM по навыкам вне словаря "
+                       "(цитата не найдена в резюме, не подтверждает навык или найдена вне раздела «Навыки»)", fixed)
+    return {**raw, "fixed": fixed, "items": items}
 
 
 # --- Отчёт ---
@@ -552,10 +584,10 @@ def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, 
     lines += [
         f"> [!info] Сопоставлено моделью `{cv_result['provider']} / {cv_result['model']}` "
         f"({cv_result['processed_at'][:16].replace('T', ' ')}). Навыки: из словаря с долей ≥ {CV_MIN_SHARE:.0%} "
-        f"и найденные LLM в ≥ {CV_MIN_LLM} вакансиях (помечены \\*). Навыки словаря ищутся в резюме точно "
-        "(с синонимами), LLM дополняет нестандартные формулировки; каждое совпадение подтверждено фрагментом резюме"
-        + (f"; {cv_result['fixed']} ответов LLM исправлено проверкой (цитата не найдена в резюме или найдена "
-           "вне раздела «Навыки»)." if cv_result["fixed"] else "."),
+        f"и найденные LLM в ≥ {CV_MIN_LLM} вакансиях (помечены \\*). Навыки словаря ищутся в резюме только точно "
+        "(с синонимами); навыки \\* — по ответу LLM, если цитата содержит слово из названия навыка. Каждое совпадение "
+        "подтверждено фрагментом резюме"
+        + (f"; {cv_result['fixed']} ответов LLM по навыкам \\* не засчитано или понижено проверкой." if cv_result["fixed"] else "."),
         "",
         f"**Итого:** {len(items)} навыков — ✅ {by_status['skills_section']} в разделе «Навыки», "
         f"🟡 {by_status['experience_only']} только в опыте, ⚠️ {by_status['missing']} пробелов. "
