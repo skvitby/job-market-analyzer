@@ -25,11 +25,11 @@ def main() -> None:
 
 @app.command()
 def fetch(
-    role: Optional[list[str]] = typer.Option(None, "--role", help="Роль для поиска (можно несколько раз)"),
-    region: Optional[list[int]] = typer.Option(None, "--region", help="ID региона HH: 113 — Россия, 16 — Беларусь (можно несколько раз)"),
-    experience: Optional[list[str]] = typer.Option(None, "--experience", help="noExperience / between1And3 / between3And6 / moreThan6 (можно несколько раз)"),
-    employment: Optional[list[str]] = typer.Option(None, "--employment", help="full / part / project (можно несколько раз)"),
-    schedule: Optional[list[str]] = typer.Option(None, "--schedule", help="office / hybrid / remote (можно несколько раз)"),
+    role: Optional[list[str]] = typer.Option(None, "--role", help="Роль для поиска (можно несколько параметров: --role \"Бизнес-аналитик\" --role \"Системный аналитик\")"),
+    region: Optional[list[int]] = typer.Option(None, "--region", help="ID региона HH: 113 — Россия, 16 — Беларусь (можно несколько параметров: --region 113 --region 16)"),
+    experience: Optional[list[str]] = typer.Option(None, "--experience", help="noExperience / between1And3 / between3And6 / moreThan6 (можно несколько параметров: --experience between1And3 --experience between3And6)"),
+    employment: Optional[list[str]] = typer.Option(None, "--employment", help="full / part / project (можно несколько параметров: --employment full --employment project)"),
+    schedule: Optional[list[str]] = typer.Option(None, "--schedule", help="office / hybrid / remote (можно несколько параметров: --schedule remote --schedule hybrid)"),
     min_salary: Optional[int] = typer.Option(None, "--min-salary", help="Минимальная зарплата (валюта — currency из профиля)"),
     no_details: bool = typer.Option(False, "--no-details", help="Не загружать полные описания вакансий в data/details/"),
 ) -> None:
@@ -37,7 +37,12 @@ def fetch(
 
     Без опций используются search_settings из profile/preferences.json,
     переданные опции их переопределяют. Затем догружает полные описания
-    вакансий, которых ещё нет в кэше data/details/ (AC 2.7).
+    вакансий, которых ещё нет в кэше data/details/ (AC 2.7). С --region описания
+    загружаются только для вакансий этих регионов (включая их города), без --region — для всех.
+
+    Несколько параметров одной опции задаются повтором опции, например:
+    fetch --region 113 --region 16 --schedule remote --schedule hybrid
+    Значения с пробелами — в кавычках: --role "Системный аналитик".
     """
     overrides: dict[str, Any] = {}
     if role:
@@ -65,7 +70,8 @@ def fetch(
     if no_details:
         return
     try:
-        loaded, failed = fetch_details()
+        # С --region описания догружаются только для вакансий этих регионов (AC 2.7).
+        loaded, failed = fetch_details(region_ids=region or None)
     except HHApiError as exc:
         typer.secho(f"Ошибка при загрузке описаний: {exc}", fg=typer.colors.RED, err=True)
         raise typer.Exit(code=1)

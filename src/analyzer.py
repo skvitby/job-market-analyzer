@@ -88,10 +88,13 @@ def _term_pattern(term: str) -> str:
     Русские слова ищутся по основе: после них допускаются любые русские буквы,
     чтобы находились падежные формы ("техническ задани" -> "техническое задание").
     Английские термины ищутся целым словом ("Git" не находится внутри "GitLab").
+    Короткие русские аббревиатуры из заглавных букв (до 3 символов: ТЗ, ФТ, ПСИ, ПМИ) — тоже
+    целым словом, иначе «ПСИ» находилось бы внутри «психология».
     """
     parts = []
     for word in _WORD_SPLIT_RE.split(term.strip()):
-        suffix = "[а-яё]*" if _CYRILLIC_END_RE.search(word) else ""
+        is_abbreviation = word.isupper() and len(word) <= 3
+        suffix = "[а-яё]*" if _CYRILLIC_END_RE.search(word) and not is_abbreviation else ""
         parts.append(re.escape(word) + suffix)
     return r"(?<!\w)" + r"[\s\-]*".join(parts) + r"(?!\w)"
 

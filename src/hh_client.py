@@ -330,17 +330,35 @@ def _cached_detail_ids() -> set[str]:
     return {path.stem for path in DETAILS_DIR.glob("*.json")}
 
 
-def _all_vacancy_ids(area: Optional[str] = None) -> list[str]:
+def _all_vacancy_ids(areas: Optional[set[str]] = None) -> list[str]:
     """ID вакансий из всех файлов data/raw_vacancies_*.json, без дублей, в порядке появления.
 
-    area — название региона (например, "Минск"), чтобы взять только его вакансии.
+    areas — названия регионов/городов (например, {"Минск"}), чтобы взять только их вакансии.
     """
     ids: dict[str, None] = {}
     for path in sorted(DATA_DIR.glob("raw_vacancies_*.json")):
         for vacancy in json.loads(path.read_text(encoding="utf-8"))["vacancies"]:
-            if area is None or vacancy.get("area") == area:
+            if areas is None or vacancy.get("area") in areas:
                 ids[str(vacancy["id"])] = None
     return list(ids)
+
+
+def area_names(client: HHClient, region_ids: list[int]) -> set[str]:
+    """Названия регионов HH и всех вложенных в них областей и городов (справочник /areas/{id}).
+
+    В выгрузке у вакансии хранится только название города, поэтому, чтобы отобрать вакансии
+    страны (например, Беларусь — 16), нужен полный список её населённых пунктов.
+    """
+    names: set[str] = set()
+
+    def walk(node: dict[str, Any]) -> None:
+        names.add(node["name"])
+        for child in node.get("areas") or []:
+            walk(child)
+
+    for region_id in region_ids:
+        walk(client.get(f"/areas/{region_id}"))
+    return names
 
 
 def _save_detail(vacancy_id: str, detail: dict[str, Any]) -> None:
@@ -351,26 +369,33 @@ def _save_detail(vacancy_id: str, detail: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
-def fetch_details(limit: Optional[int] = None, area: Optional[str] = None) -> tuple[int, int]:
+def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] = None,
+                  areas: Optional[set[str]] = None) -> tuple[int, int]:
     """Догружает полные описания и key_skills для вакансий, которых нет в кэше (AC 2.7).
 
     Берутся вакансии из всех файлов выгрузок, поэтому то, что не загрузилось
     в прошлый раз, загружается при следующем запуске. Вакансии, удалённые с HH (404),
     сохраняются в кэш с description = None, чтобы не запрашивать их повторно.
-    limit — ограничение количества (для проверки на небольшой выборке),
-    area — загрузить только вакансии этого региона (например, "Минск").
+    limit — ограничение количества (для проверки на небольшой выборке);
+    region_ids — ID регионов HH (как --region): только вакансии этих регионов и вложенных городов;
+    areas — названия городов напрямую (например, {"Минск"}).
     Возвращает (загружено, ошибок).
     """
+    settings = load_preferences()["search_settings"]
+    client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
+    if region_ids:
+        areas = (areas or set()) | area_names(client, region_ids)
+        logger.info("Описания только для регионов %s: %d населённых пунктов в справочнике HH",
+                    ", ".join(map(str, region_ids)), len(areas))
+
     cached = _cached_detail_ids()
-    pending = [vid for vid in _all_vacancy_ids(area) if vid not in cached]
+    pending = [vid for vid in _all_vacancy_ids(areas) if vid not in cached]
     if limit is not None:
         pending = pending[:limit]
     if not pending:
         logger.info("Все описания вакансий уже в кэше")
         return 0, 0
 
-    settings = load_preferences()["search_settings"]
-    client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
     DETAILS_DIR.mkdir(parents=True, exist_ok=True)
     logger.info("Загружаю полные описания: %d вакансий (~%.0f мин)", len(pending), len(pending) * client.delay / 60)
 
