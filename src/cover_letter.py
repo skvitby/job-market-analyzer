@@ -14,7 +14,7 @@ from typing import Any
 from src.config import PROJECT_ROOT, load_preferences
 from src.hh_client import get_vacancy
 from src.llm_service import ask_json, get_settings
-from src.text_utils import count
+from src.text_utils import count, normalize_text, quote_found
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +168,31 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, str]],
     return "\n".join(lines)
 
 
+def check_answer(answer: dict[str, Any], cv_text: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """Проверка достоверности ответа LLM (AC 4.6): цитаты сверяются с резюме так же, как в AC 3.3.
+
+    Возвращает пары соответствия с отметкой verified, требования без подтверждения и предупреждения
+    для терминала. Письмо сохраняется в любом случае — решение по отметкам принимает пользователь.
+    """
+    cv_norm = normalize_text(cv_text)
+    matches = [{"requirement": str(m.get("requirement", "")).strip(),
+                "cv_evidence": str(m.get("cv_evidence", "")).strip(),
+                "verified": quote_found(str(m.get("cv_evidence", "")), cv_norm)}
+               for m in answer.get("matches") or []]
+    unconfirmed = [str(item).strip() for item in answer.get("unconfirmed") or [] if str(item).strip()]
+
+    warnings = []
+    if not matches:
+        warnings.append("Резюме не подтверждает ни одного требования вакансии — проверьте, стоит ли откликаться")
+    not_found = sum(not m["verified"] for m in matches)
+    if not_found:
+        warnings.append(f"Цитаты не найдены в резюме: {not_found} из {len(matches)} — "
+                        "пары отмечены ⚠️ в файле письма, проверьте утверждения по ним")
+    if unconfirmed:
+        warnings.append(f"Требований вакансии без подтверждения в резюме: {len(unconfirmed)} — см. файл письма")
+    return matches, unconfirmed, warnings
+
+
 def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
     """Генерирует письмо по ID вакансии и сохраняет новую версию (US-04).
 
@@ -188,7 +213,7 @@ def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
     if not letter:
         raise ValueError(f"{settings.model} вернул пустое письмо — попробуйте ещё раз")
 
-    warnings = []
+    matches, unconfirmed, warnings = check_answer(answer, cv_text)
     words = count_words(letter)
     max_words = int(prefs.get("cover_letter_max_words") or 250)
     if words > max_words * MAX_WORDS_TOLERANCE:
@@ -196,7 +221,6 @@ def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
 
     LETTERS_DIR.mkdir(parents=True, exist_ok=True)
     path, version = next_letter_path(str(vacancy["id"]))
-    matches = answer.get("matches") or []
     path.write_text(render(vacancy, letter, matches, version, settings.model, words), encoding="utf-8")
     logger.info("Письмо сохранено: %s (версия %d, %s)", path.relative_to(PROJECT_ROOT), version, count(words, *WORD))
     return path, version, warnings

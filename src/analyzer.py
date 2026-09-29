@@ -19,7 +19,7 @@ from typing import Any, Optional
 from src.config import PROJECT_ROOT, load_preferences
 from src.hh_client import DATA_DIR, DETAILS_DIR
 from src.llm_service import LLMError, ask_json, get_settings
-from src.text_utils import SKILL, VACANCY, count, plural
+from src.text_utils import SKILL, VACANCY, count, normalize_text, plural, quote_found
 
 logger = logging.getLogger(__name__)
 
@@ -389,11 +389,6 @@ def cv_candidates(stats: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(candidates, key=lambda c: (-c["share"], c["skill"].lower()))
 
 
-def _normalize_text(text: str) -> str:
-    """Текст для сверки цитат: без markdown-разметки, в нижнем регистре, с одиночными пробелами."""
-    return re.sub(r"\s+", " ", re.sub(r"[*_#`>]", "", text)).strip().lower()
-
-
 def cv_skills_section(cv_text: str) -> Optional[str]:
     """Раздел «Навыки» резюме: от заголовка «Навыки» до следующего заголовка того же или более высокого уровня."""
     lines = cv_text.splitlines()
@@ -408,19 +403,7 @@ def cv_skills_section(cv_text: str) -> Optional[str]:
     return None
 
 
-_QUOTE_SPLIT_RE = re.compile(r"[;,/()«»\"…]|\.\.\.")
 CV_STATUS_RANK = {"missing": 0, "experience_only": 1, "skills_section": 2}
-
-
-def _quote_found(quote: str, text_norm: str) -> bool:
-    """Цитата подтверждается, если каждый её фрагмент (между ; , / и т.п.) есть в тексте.
-
-    Модель на длинных списках склеивает цитату из несмежных пунктов («BPMN; Моделирование
-    бизнес-процессов»), поэтому дословного совпадения всей цитаты не требуем.
-    """
-    fragments = [f.strip() for f in _QUOTE_SPLIT_RE.split(_normalize_text(quote))]
-    fragments = [f for f in fragments if len(f) >= 2]
-    return bool(fragments) and all(f in text_norm for f in fragments)
 
 
 def verify_cv_results(items: list[dict[str, Any]], cv_text: str) -> tuple[list[dict[str, Any]], int]:
@@ -430,17 +413,17 @@ def verify_cv_results(items: list[dict[str, Any]], cv_text: str) -> tuple[list[d
     Статус "skills_section", но цитата вне раздела «Навыки» -> "experience_only".
     Возвращает проверенные результаты и число исправленных статусов.
     """
-    cv_norm = _normalize_text(cv_text)
+    cv_norm = normalize_text(cv_text)
     section = cv_skills_section(cv_text)
-    section_norm = _normalize_text(section) if section is not None else None
+    section_norm = normalize_text(section) if section is not None else None
     fixed = 0
     checked = []
     for item in items:
         status, quote = item["status"], item.get("quote", "")
         if status != "missing":
-            if not _quote_found(quote, cv_norm):
+            if not quote_found(quote, cv_norm):
                 status, fixed = "missing", fixed + 1
-            elif status == "skills_section" and section_norm is not None and not _quote_found(quote, section_norm):
+            elif status == "skills_section" and section_norm is not None and not quote_found(quote, section_norm):
                 status, fixed = "experience_only", fixed + 1
         checked.append({**item, "status": status, "quote": quote if status != "missing" else ""})
     return checked, fixed

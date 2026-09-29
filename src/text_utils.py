@@ -1,4 +1,6 @@
-"""Вспомогательные функции для текстов, которые видит пользователь."""
+"""Вспомогательные функции для текстов: формы слов для пользователя и сверка цитат LLM с исходным текстом."""
+
+import re
 
 
 def plural(n: int, one: str, few: str, many: str) -> str:
@@ -35,3 +37,23 @@ def duration(seconds: float) -> str:
 
 VACANCY = ("вакансия", "вакансии", "вакансий")
 SKILL = ("навык", "навыка", "навыков")
+
+
+_QUOTE_SPLIT_RE = re.compile(r"[;,/()«»\"…]|\.\.\.")
+
+
+def normalize_text(text: str) -> str:
+    """Текст для сверки цитат: без markdown-разметки, в нижнем регистре, с одиночными пробелами."""
+    return re.sub(r"\s+", " ", re.sub(r"[*_#`>]", "", text)).strip().lower()
+
+
+def quote_found(quote: str, text_norm: str) -> bool:
+    """Цитата подтверждается, если каждый её фрагмент (между ; , / … и т.п.) есть в тексте (AC 3.3, AC 4.6).
+
+    text_norm — текст после normalize_text(). Модель на длинных списках склеивает цитату
+    из несмежных пунктов («BPMN; Моделирование бизнес-процессов»), поэтому дословного
+    совпадения всей цитаты не требуем.
+    """
+    fragments = [f.strip() for f in _QUOTE_SPLIT_RE.split(normalize_text(quote))]
+    fragments = [f for f in fragments if len(f) >= 2]
+    return bool(fragments) and all(f in text_norm for f in fragments)
