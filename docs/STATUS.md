@@ -34,6 +34,7 @@ tags: [status, job-market-analyzer]
 |---|---|
 | [requirements.md](../requirements.md) | Требования (US, AC, NFR), CLI, **бэклог — раздел 9** |
 | [docs/adr/001-llm-provider.md](adr/001-llm-provider.md) | Выбор LLM-провайдера, сравнение моделей, контекст Ollama |
+| [docs/adr/002-vacancy-details-cache.md](adr/002-vacancy-details-cache.md) | Хранение полных описаний вакансий в отдельном кэше `data/details/` |
 | [docs/testing/test-report-us01-03.md](testing/test-report-us01-03.md) | Протокол приёмочного тестирования, дефекты, исправления, регрессия |
 | `profile/preferences.json` | Настройки (в git) |
 | `profile/my_cv.md` | Резюме (**не в git**) |
