@@ -19,3 +19,4 @@ data/*
 reports/cover_letters/*
 !reports/cover_letters/.gitkeep
 reports/*.md
+reports/eval/

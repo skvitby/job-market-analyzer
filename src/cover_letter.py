@@ -9,8 +9,9 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
+from src.analyzer import build_matchers, dictionary_cv_status, match_skills, normalize_dictionary
 from src.config import PROJECT_ROOT, load_preferences
 from src.hh_client import get_vacancy
 from src.llm_service import ask_json, get_settings
@@ -177,7 +178,7 @@ def _cell(text: str) -> str:
     return text.replace("|", "/").replace("\n", " ")
 
 
-def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], unconfirmed: list[str],
+def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], unconfirmed: list[dict[str, Any]],
            language: str, version: int, model: str, words: int) -> str:
     """Markdown-файл письма для Obsidian (AC 4.4), блоки сверху вниз: метаданные, текст письма,
     требования без подтверждения (если есть), чек-лист «Перед отправкой», таблица пар соответствия.
@@ -207,7 +208,14 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], 
                   "> В письме не упоминаются. Если опыт на самом деле есть — стоит добавить его в резюме;"
                   " если нет — подготовиться к вопросу на собеседовании.",
                   ">"]
-        lines += [f"> - {_cell(item)}" for item in unconfirmed]
+        for item in unconfirmed:
+            line = f"> - {_cell(item['text'])}"
+            if item["in_cv"]:
+                found = "; ".join(f"{skill} — «{_cell(fragment)}»" for skill, fragment in item["in_cv"])
+                line += f" — ⚠️ возможно, есть в резюме: {found}"
+            lines.append(line)
+        if any(item["in_cv"] for item in unconfirmed):
+            lines += [">", "> ⚠️ — навык из пункта найден в резюме: модель могла ошибиться, проверьте пункт."]
         lines.append("")
 
     lines += ["> [!todo] Перед отправкой", *(f"> - [ ] {item}" for item in BEFORE_SENDING), ""]
@@ -226,18 +234,42 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], 
     return "\n".join(lines)
 
 
-def check_answer(answer: dict[str, Any], cv_text: str) -> tuple[list[dict[str, Any]], list[str], list[str]]:
-    """Проверка достоверности ответа LLM (AC 4.6): цитаты сверяются с резюме так же, как в AC 3.3.
+def mark_unconfirmed(items: list[str], cv_text: str,
+                     dictionary: dict[str, list[str]]) -> list[dict[str, Any]]:
+    """Требования без подтверждения с отметкой «возможно, есть в резюме» (AC 4.6, дефект D-4).
 
-    Возвращает пары соответствия с отметкой verified, требования без подтверждения и предупреждения
-    для терминала. Письмо сохраняется в любом случае — решение по отметкам принимает пользователь.
+    Модель иногда относит к неподтверждённым то, что в резюме есть (Agile, Jira, SQL). Навыки словаря
+    (AC 1.2), упомянутые в пункте, ищутся в резюме точным поиском с синонимами, как в AC 3.3;
+    найденные возвращаются в in_cv парами (навык, фрагмент резюме). Навыки вне словаря не проверяются.
+    """
+    matchers = build_matchers(dictionary)
+    marked = []
+    for text in items:
+        in_cv = []
+        for skill in sorted(match_skills(text, matchers)):
+            status, fragment = dictionary_cv_status(skill, dictionary, cv_text)
+            if status != "missing":
+                in_cv.append((skill, fragment.lstrip("- ")))
+        marked.append({"text": text, "in_cv": in_cv})
+    return marked
+
+
+def check_answer(answer: dict[str, Any], cv_text: str, dictionary: Optional[dict[str, list[str]]] = None
+                 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    """Проверка достоверности ответа LLM (AC 4.6): цитаты сверяются с резюме так же, как в AC 3.3,
+    требования без подтверждения — по словарю навыков.
+
+    Возвращает пары соответствия с отметкой verified, требования без подтверждения с отметкой in_cv
+    и предупреждения для терминала. Письмо сохраняется в любом случае — решение по отметкам
+    принимает пользователь.
     """
     cv_norm = normalize_text(cv_text)
     matches = [{"requirement": str(m.get("requirement", "")).strip(),
                 "cv_evidence": str(m.get("cv_evidence", "")).strip(),
                 "verified": quote_found(str(m.get("cv_evidence", "")), cv_norm)}
                for m in answer.get("matches") or []]
-    unconfirmed = [str(item).strip() for item in answer.get("unconfirmed") or [] if str(item).strip()]
+    items = [str(item).strip() for item in answer.get("unconfirmed") or [] if str(item).strip()]
+    unconfirmed = mark_unconfirmed(items, cv_text, dictionary or {})
 
     warnings = []
     if not matches:
@@ -247,14 +279,17 @@ def check_answer(answer: dict[str, Any], cv_text: str) -> tuple[list[dict[str, A
         warnings.append(f"Цитаты не найдены в резюме: {not_found} из {len(matches)} — "
                         "пары отмечены ⚠️ в файле письма, проверьте утверждения по ним")
     if unconfirmed:
-        warnings.append(f"Требований вакансии без подтверждения в резюме: {len(unconfirmed)} — см. файл письма")
+        maybe = sum(bool(item["in_cv"]) for item in unconfirmed)
+        note = f" (из них {maybe}, возможно, есть в резюме)" if maybe else ""
+        warnings.append(f"Требований вакансии без подтверждения в резюме: {len(unconfirmed)}{note} — см. файл письма")
     return matches, unconfirmed, warnings
 
 
-def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
+def generate_cover_letter(vacancy_id: str, letters_dir: Optional[Path] = None) -> tuple[Path, int, list[str]]:
     """Генерирует письмо по ID вакансии и сохраняет новую версию (US-04).
 
-    Возвращает путь к файлу, номер версии и предупреждения.
+    letters_dir — папка для писем; по умолчанию reports/cover_letters/ (другая — для сравнения моделей,
+    scripts/eval_cover_letters.py). Возвращает путь к файлу, номер версии и предупреждения.
     Ошибки: FileNotFoundError (нет резюме), HHApiError (вакансия), LLMError (NFR-5).
     """
     if not CV_PATH.exists():
@@ -273,15 +308,18 @@ def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
     if not letter:
         raise ValueError(f"{settings.model} вернул пустое письмо — попробуйте ещё раз")
 
-    matches, unconfirmed, warnings = check_answer(answer, cv_text)
+    dictionary = normalize_dictionary(load_preferences()["analytical_skills_dictionary"])
+    matches, unconfirmed, warnings = check_answer(answer, cv_text, dictionary)
     words = count_words(letter)
     max_words = int(prefs.get("cover_letter_max_words") or 250)
     if words > max_words * MAX_WORDS_TOLERANCE:
         warnings.append(f"Письмо длиннее ориентира: {count(words, *WORD)} при cover_letter_max_words = {max_words}")
 
-    LETTERS_DIR.mkdir(parents=True, exist_ok=True)
-    path, version = next_letter_path(str(vacancy["id"]))
+    letters_dir = letters_dir or LETTERS_DIR
+    letters_dir.mkdir(parents=True, exist_ok=True)
+    path, version = next_letter_path(str(vacancy["id"]), letters_dir)
     path.write_text(render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words),
                     encoding="utf-8")
-    logger.info("Письмо сохранено: %s (версия %d, %s)", path.relative_to(PROJECT_ROOT), version, count(words, *WORD))
+    shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
+    logger.info("Письмо сохранено: %s (версия %d, %s)", shown, version, count(words, *WORD))
     return path, version, warnings
