@@ -32,10 +32,11 @@ TONES = {
     "formal": "официально-деловой",
 }
 
+# Порядок полей важен: модель сначала выписывает пары соответствия и неподтверждённые требования,
+# а потом пишет письмо на их основе (prompts/cover_letter.md, AC 4.6).
 LETTER_SCHEMA: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "letter": {"type": "string"},
         "matches": {
             "type": "array",
             "items": {
@@ -48,8 +49,10 @@ LETTER_SCHEMA: dict[str, Any] = {
                 "additionalProperties": False,
             },
         },
+        "unconfirmed": {"type": "array", "items": {"type": "string"}},
+        "letter": {"type": "string"},
     },
-    "required": ["letter", "matches"],
+    "required": ["matches", "unconfirmed", "letter"],
     "additionalProperties": False,
 }
 

@@ -33,10 +33,13 @@ PROVIDERS: dict[str, dict[str, Any]] = {
              "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
              "batch_size": 10, "timeout": 120, "console": "Alibaba Cloud Model Studio"},
     # Малые локальные модели при пакете из нескольких вакансий теряют часть из них (ADR-001, раздел 6),
-    # поэтому отправляем по одной. Контекст Ollama по умолчанию — 4096 токенов.
-    # Первый запрос загружает модель в память (до пары минут на слабой видеокарте), поэтому таймаут больше.
+    # поэтому отправляем по одной. Контекст Ollama по умолчанию — 4096 токенов; для cv_processing нужен
+    # вариант модели с 8K (docs/ollama/Modelfile). Первый запрос загружает модель в память
+    # (до пары минут на слабой видеокарте), поэтому таймаут больше.
+    # json_schema: Ollama ограничивает генерацию JSON-схемой, иначе малая модель может скопировать
+    # форму самой схемы ({"type": "object", "properties": {...}}) вместо ответа по ней.
     "ollama": {"client": "openai", "key_env": None, "base_url": "http://localhost:11434/v1",
-               "batch_size": 1, "timeout": 600, "console": None},
+               "batch_size": 1, "timeout": 600, "console": None, "json_schema": True},
 }
 
 
@@ -140,16 +143,21 @@ def _ask_openai_compatible(settings: LLMSettings, instruction: str, text: str,
                            schema: dict[str, Any]) -> tuple[str, dict[str, int]]:
     """Запрос к OpenAI-совместимому провайдеру (DeepSeek, Qwen, Ollama) в JSON-режиме.
 
-    JSON-режим гарантирует только корректный JSON, но не структуру, поэтому схема
-    передаётся в инструкции, а ответ проверяется в _validate().
+    Если провайдер поддерживает json_schema (Ollama), генерация ограничивается схемой, как у Claude.
+    Иначе JSON-режим гарантирует только корректный JSON, но не структуру. В обоих случаях схема
+    дублируется в инструкции как подсказка, а ответ проверяется в _validate().
     """
     client = openai.OpenAI(api_key=_api_key(settings), base_url=settings.base_url,
                            max_retries=MAX_RETRIES, timeout=settings.timeout)
     system = f"{instruction}\n\nОтветь только JSON-объектом по схеме:\n{json.dumps(schema, ensure_ascii=False)}"
+    if PROVIDERS[settings.provider].get("json_schema"):
+        response_format = {"type": "json_schema", "json_schema": {"name": "response", "schema": schema}}
+    else:
+        response_format = {"type": "json_object"}
     response = client.chat.completions.create(
         model=settings.model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
-        response_format={"type": "json_object"},
+        response_format=response_format,
         max_tokens=MAX_OUTPUT_TOKENS,
     )
     choice = response.choices[0]

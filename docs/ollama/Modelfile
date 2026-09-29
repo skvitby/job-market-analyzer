@@ -1,0 +1,7 @@
+# Вариант локальной модели с контекстом 8K для cv_processing (ADR-001, раздел 6.2; бэклог п. 1).
+# По умолчанию Ollama использует контекст 4096 токенов и молча обрезает начало длинного запроса
+# вместе с инструкцией; запрос письма (инструкция + резюме + вакансия) — около 4,5K токенов.
+# Создание: ollama create qwen3-4b-8k -f docs/ollama/Modelfile
+# В profile/preferences.json: "cv_processing": {"provider": "ollama", "model": "qwen3-4b-8k"}
+FROM qwen3:4b-instruct-2507-q4_K_M
+PARAMETER num_ctx 8192
