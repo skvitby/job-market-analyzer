@@ -117,7 +117,7 @@
   },
   "excluded_skills": ["1С", "1C", "SAP"],
   "llm_preferences": {
-    "cover_letter_language": "ru",
+    "cover_letter_language": "auto",
     "tone": "professional_and_enthusiastic",
     "focus_areas": ["Интеграции и API", "Проектирование баз данных", "Сбор и документирование требований"],
     "cover_letter_max_words": 250,

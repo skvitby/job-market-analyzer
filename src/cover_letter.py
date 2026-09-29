@@ -23,7 +23,10 @@ LETTERS_DIR = PROJECT_ROOT / "reports" / "cover_letters"
 PROMPT_PATH = PROJECT_ROOT / "prompts" / "cover_letter.md"  # текст инструкции для LLM
 MAX_WORDS_TOLERANCE = 1.2  # превышение ориентира объёма больше чем на 20% — предупреждение (AC 4.5)
 
-LANGUAGES = {"ru": "русском", "en": "английском"}
+LANGUAGES = {"ru": "русском", "en": "английском"}   # код -> форма для промпта («на … языке»)
+LANGUAGE_NAMES = {"ru": "русский", "en": "английский"}
+_LATIN_RE = re.compile(r"[A-Za-z]")
+_CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
 # Известные значения tone -> описание для модели; другие значения передаются как есть.
 TONES = {
     "professional": "профессиональный, сдержанный, без канцелярита",
@@ -85,13 +88,39 @@ def load_prompt(values: dict[str, Any], path: Path = PROMPT_PATH) -> str:
     return _PLACEHOLDER_RE.sub(lambda m: str(values[m.group(1)]), text).strip()
 
 
-def build_instruction(prefs: dict[str, Any]) -> str:
-    """Системная инструкция для LLM: prompts/cover_letter.md + значения из llm_preferences (AC 4.3, AC 4.5)."""
-    language = LANGUAGES.get(str(prefs.get("cover_letter_language", "ru")).lower(), prefs.get("cover_letter_language"))
+def detect_language(text: str) -> tuple[str, int, int]:
+    """Язык текста для cover_letter_language = auto (AC 4.5): en, если латинских букв больше, чем кириллических.
+
+    При равенстве — ru. Возвращает код языка и число латинских и кириллических букв (для лога).
+    """
+    latin = len(_LATIN_RE.findall(text))
+    cyrillic = len(_CYRILLIC_RE.findall(text))
+    return ("en" if latin > cyrillic else "ru"), latin, cyrillic
+
+
+def resolve_language(prefs: dict[str, Any], vacancy: dict[str, Any]) -> str:
+    """Код языка письма из cover_letter_language: ru, en или auto — по описанию вакансии (AC 4.5)."""
+    setting = str(prefs.get("cover_letter_language") or "ru").strip().lower()
+    if setting == "auto":
+        language, latin, cyrillic = detect_language("\n".join(vacancy.get("description") or []))
+        logger.info("Язык письма: %s (auto: латинских букв %d, кириллических %d)",
+                    LANGUAGE_NAMES[language], latin, cyrillic)
+        return language
+    if setting not in LANGUAGES:
+        raise ValueError(f"llm_preferences.cover_letter_language: неизвестное значение «{setting}». "
+                         f"Допустимые: {', '.join(LANGUAGES)}, auto")
+    return setting
+
+
+def build_instruction(prefs: dict[str, Any], language: str) -> str:
+    """Системная инструкция для LLM: prompts/cover_letter.md + значения из llm_preferences (AC 4.3, AC 4.5).
+
+    language — код языка письма (ru / en), уже определённый resolve_language().
+    """
     tone = str(prefs.get("tone") or "professional")
     focus = [str(area) for area in prefs.get("focus_areas") or []]
     return load_prompt({
-        "language": language,
+        "language": LANGUAGES[language],
         "tone": TONES.get(tone, tone),
         "max_words": int(prefs.get("cover_letter_max_words") or 250),
         "focus_areas": "; ".join(focus) if focus else "не заданы",
@@ -205,10 +234,12 @@ def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
     vacancy = get_vacancy(vacancy_id)
     prefs = load_preferences()["llm_preferences"]
     settings = get_settings("cv_processing")
+    language = resolve_language(prefs, vacancy)
 
     logger.info("Письмо: «%s» (%s), LLM %s/%s", vacancy.get("name"), vacancy.get("employer"),
                 settings.provider, settings.model)
-    answer = ask_json("cv_processing", build_instruction(prefs), build_input(vacancy, cv_text), LETTER_SCHEMA)
+    answer = ask_json("cv_processing", build_instruction(prefs, language), build_input(vacancy, cv_text),
+                      LETTER_SCHEMA)
     letter = answer["letter"].strip()
     if not letter:
         raise ValueError(f"{settings.model} вернул пустое письмо — попробуйте ещё раз")
