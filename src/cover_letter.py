@@ -21,6 +21,13 @@ logger = logging.getLogger(__name__)
 CV_PATH = PROJECT_ROOT / "profile" / "my_cv.md"
 LETTERS_DIR = PROJECT_ROOT / "reports" / "cover_letters"
 PROMPT_PATH = PROJECT_ROOT / "prompts" / "cover_letter.md"  # текст инструкции для LLM
+# Пункты ручной проверки письма (AC 4.4); то, что проверяет код (цитаты, AC 4.6), сюда не входит.
+BEFORE_SENDING = (
+    "Все утверждения подтверждаются резюме (см. «На чём построено письмо»)",
+    "Числа совпадают с резюме",
+    "Язык и тон подходят вакансии",
+    "Фразы читаются естественно",
+)
 MAX_WORDS_TOLERANCE = 1.2  # превышение ориентира объёма больше чем на 20% — предупреждение (AC 4.5)
 
 LANGUAGES = {"ru": "русском", "en": "английском"}   # код -> форма для промпта («на … языке»)
@@ -165,9 +172,16 @@ def _yaml(value: Any) -> str:
     return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, str]],
-           version: int, model: str, words: int) -> str:
-    """Markdown-файл письма: метаданные для Obsidian, текст письма, пункты соответствия (AC 4.4)."""
+def _cell(text: str) -> str:
+    """Текст для ячейки Markdown-таблицы: без переносов строк и вертикальных черт."""
+    return text.replace("|", "/").replace("\n", " ")
+
+
+def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], unconfirmed: list[str],
+           language: str, version: int, model: str, words: int) -> str:
+    """Markdown-файл письма для Obsidian (AC 4.4), блоки сверху вниз: метаданные, текст письма,
+    требования без подтверждения (если есть), чек-лист «Перед отправкой», таблица пар соответствия.
+    """
     meta = {
         "vacancy_id": vacancy["id"],
         "vacancy": vacancy.get("name") or "",
@@ -177,6 +191,7 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, str]],
         "version": version,
         "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
         "model": model,
+        "language": language,
         "words": words,
     }
     lines = ["---", *(f"{key}: {_yaml(value)}" for key, value in meta.items()), "tags: [cover-letter]", "---", ""]
@@ -186,14 +201,28 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, str]],
     if meta["url"]:
         lines += [f"Вакансия: {meta['url']} · версия {version} · {count(words, *WORD)}", ""]
     lines += [letter.strip(), ""]
-    if matches:
-        lines += ["> [!info]- На чём построено письмо (проверьте факты перед отправкой)",
-                  "> | Требование вакансии | Подтверждение в резюме |", "> |---|---|"]
-        for item in matches:
-            requirement = item.get("requirement", "").replace("|", "/").replace("\n", " ")
-            evidence = item.get("cv_evidence", "").replace("|", "/").replace("\n", " ")
-            lines.append(f"> | {requirement} | {evidence} |")
+
+    if unconfirmed:
+        lines += ["> [!warning] Требования вакансии без подтверждения в резюме",
+                  "> В письме не упоминаются. Если опыт на самом деле есть — стоит добавить его в резюме;"
+                  " если нет — подготовиться к вопросу на собеседовании.",
+                  ">"]
+        lines += [f"> - {_cell(item)}" for item in unconfirmed]
         lines.append("")
+
+    lines += ["> [!todo] Перед отправкой", *(f"> - [ ] {item}" for item in BEFORE_SENDING), ""]
+
+    lines.append("> [!info]- На чём построено письмо")
+    if matches:
+        lines += ["> | | Требование вакансии | Подтверждение в резюме |", "> |---|---|---|"]
+        for item in matches:
+            mark = "✅" if item.get("verified") else "⚠️"
+            lines.append(f"> | {mark} | {_cell(item.get('requirement', ''))} | {_cell(item.get('cv_evidence', ''))} |")
+        if not all(item.get("verified") for item in matches):
+            lines += [">", "> ⚠️ — цитата не найдена в резюме: утверждения письма по этому пункту нужно проверить."]
+    else:
+        lines.append("> Прямых подтверждений требований вакансии в резюме не найдено.")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -252,6 +281,7 @@ def generate_cover_letter(vacancy_id: str) -> tuple[Path, int, list[str]]:
 
     LETTERS_DIR.mkdir(parents=True, exist_ok=True)
     path, version = next_letter_path(str(vacancy["id"]))
-    path.write_text(render(vacancy, letter, matches, version, settings.model, words), encoding="utf-8")
+    path.write_text(render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words),
+                    encoding="utf-8")
     logger.info("Письмо сохранено: %s (версия %d, %s)", path.relative_to(PROJECT_ROOT), version, count(words, *WORD))
     return path, version, warnings
