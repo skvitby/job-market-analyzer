@@ -410,6 +410,16 @@ def _save_detail(vacancy_id: str, detail: dict[str, Any]) -> None:
     tmp.replace(path)
 
 
+def _detail_record(vacancy_id: str, data: Optional[dict[str, Any]]) -> dict[str, Any]:
+    """Запись кэша data/details/{id}.json (AC 2.7) из ответа GET /vacancies/{id}; None — вакансия удалена."""
+    return {
+        "id": vacancy_id,
+        "description": _html_to_paragraphs(data.get("description")) if data else None,
+        "key_skills": [skill["name"] for skill in (data or {}).get("key_skills") or []],
+        "fetched_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+
+
 def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] = None,
                   areas: Optional[set[str]] = None) -> tuple[int, int]:
     """Догружает полные описания и key_skills для вакансий, которых нет в кэше (AC 2.7).
@@ -443,15 +453,8 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
     loaded = failed = failed_in_row = 0
     started = time.monotonic()
     for n, vacancy_id in enumerate(pending, start=1):
-        now = datetime.now().astimezone().isoformat(timespec="seconds")
         try:
-            data = client.get(f"/vacancies/{vacancy_id}")
-            detail = {
-                "id": vacancy_id,
-                "description": _html_to_paragraphs(data.get("description")),
-                "key_skills": [skill["name"] for skill in data.get("key_skills") or []],
-                "fetched_at": now,
-            }
+            detail = _detail_record(vacancy_id, client.get(f"/vacancies/{vacancy_id}"))
         except HHApiError as exc:
             if exc.code != "404":
                 failed += 1
@@ -463,7 +466,7 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
                     break
                 continue
             logger.warning("Вакансия %s удалена с HH, сохраняю без описания", vacancy_id)
-            detail = {"id": vacancy_id, "description": None, "key_skills": [], "fetched_at": now}
+            detail = _detail_record(vacancy_id, None)
 
         _save_detail(vacancy_id, detail)
         loaded += 1
@@ -475,3 +478,59 @@ def fetch_details(limit: Optional[int] = None, region_ids: Optional[list[int]] =
 
     logger.info("Описаний загружено: %d, ошибок: %d", loaded, failed)
     return loaded, failed
+
+
+def _find_record(vacancy_id: str) -> Optional[dict[str, Any]]:
+    """Метаданные вакансии (AC 2.4) из самого свежего файла data/raw_vacancies_*.json, где есть этот id."""
+    for path in sorted(DATA_DIR.glob("raw_vacancies_*.json"), reverse=True):
+        for vacancy in json.loads(path.read_text(encoding="utf-8"))["vacancies"]:
+            if str(vacancy["id"]) == vacancy_id:
+                return vacancy
+    return None
+
+
+def _get_from_hh(vacancy_id: str) -> dict[str, Any]:
+    """GET /vacancies/{id} с понятной ошибкой, если вакансии нет на HH."""
+    settings = load_preferences()["search_settings"]
+    client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
+    try:
+        return client.get(f"/vacancies/{vacancy_id}")
+    except HHApiError as exc:
+        if exc.code == "404":
+            raise HHApiError(f"Вакансия {vacancy_id} не найдена на HH: удалена или неверный ID",
+                             code="404") from exc
+        raise
+
+
+def get_vacancy(vacancy_id: str) -> dict[str, Any]:
+    """Вакансия по ID для US-04 / US-05 (AC 4.1, AC 5.1): метаданные + полное описание и key_skills.
+
+    Описание берётся из кэша data/details/, метаданные — из выгрузок data/raw_vacancies_*.json
+    (почему данные разделены — ADR-002). Чего нет локально, запрашивается у HH одним запросом;
+    описание при этом сохраняется в кэш. Если вакансия не найдена или удалена — HHApiError.
+    """
+    vacancy_id = str(vacancy_id).strip()
+    if not vacancy_id.isdigit():
+        raise HHApiError(f"Некорректный ID вакансии: «{vacancy_id}» — ожидается число, например 137798209")
+
+    record = _find_record(vacancy_id)
+    path = DETAILS_DIR / f"{vacancy_id}.json"
+    detail = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+    if detail is None:
+        logger.info("Вакансия %s: описания нет в кэше, запрашиваю у HH", vacancy_id)
+        data = _get_from_hh(vacancy_id)
+        detail = _detail_record(vacancy_id, data)
+        DETAILS_DIR.mkdir(parents=True, exist_ok=True)
+        _save_detail(vacancy_id, detail)
+        record = record or to_record(data)
+    elif record is None:
+        # Вакансию уже запрашивали по ID, но в выгрузках её нет — метаданные берём у HH.
+        logger.info("Вакансия %s: описание из кэша, метаданные запрашиваю у HH", vacancy_id)
+        record = to_record(_get_from_hh(vacancy_id))
+    else:
+        logger.info("Вакансия %s: описание из кэша", vacancy_id)
+
+    if not detail.get("description"):
+        raise HHApiError(f"Вакансия {vacancy_id} удалена с HH, полного описания в кэше нет", code="404")
+    return {**record, "description": detail["description"], "key_skills": detail["key_skills"]}
