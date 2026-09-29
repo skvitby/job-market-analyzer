@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 CV_PATH = PROJECT_ROOT / "profile" / "my_cv.md"
 LETTERS_DIR = PROJECT_ROOT / "reports" / "cover_letters"
+PROMPT_PATH = PROJECT_ROOT / "prompts" / "cover_letter.md"  # текст инструкции для LLM
 MAX_WORDS_TOLERANCE = 1.2  # превышение ориентира объёма больше чем на 20% — предупреждение (AC 4.5)
 
 LANGUAGES = {"ru": "русском", "en": "английском"}
@@ -55,42 +56,43 @@ LETTER_SCHEMA: dict[str, Any] = {
 WORD = ("слово", "слова", "слов")
 _WORD_RE = re.compile(r"\w+(?:[-']\w+)*")
 _VERSION_RE = re.compile(r"^cl_(\d+)(?:_v(\d+))?\.md$")
+_PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
+_FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
+
+
+def load_prompt(values: dict[str, Any], path: Path = PROMPT_PATH) -> str:
+    """Текст промпта из файла с подстановкой {плейсхолдеров}; frontmatter (описание для Obsidian) отбрасывается.
+
+    Все плейсхолдеры файла должны быть в values, и наоборот — иначе ValueError:
+    так опечатка в файле промпта не уйдёт в модель незамеченной.
+    """
+    shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
+    if not path.exists():
+        raise FileNotFoundError(f"Не найден файл промпта {shown}")
+    text = _FRONTMATTER_RE.sub("", path.read_text(encoding="utf-8"), count=1)
+    found = set(_PLACEHOLDER_RE.findall(text))
+    if found != set(values):
+        problems = []
+        if found - set(values):
+            problems.append("неизвестные: " + ", ".join(f"{{{k}}}" for k in sorted(found - set(values))))
+        if set(values) - found:
+            problems.append("нет в файле: " + ", ".join(f"{{{k}}}" for k in sorted(set(values) - found)))
+        raise ValueError(f"Плейсхолдеры в {shown} не совпадают с ожидаемыми — "
+                         + "; ".join(problems))
+    return _PLACEHOLDER_RE.sub(lambda m: str(values[m.group(1)]), text).strip()
 
 
 def build_instruction(prefs: dict[str, Any]) -> str:
-    """Системная инструкция для LLM из llm_preferences (AC 4.3, AC 4.5)."""
+    """Системная инструкция для LLM: prompts/cover_letter.md + значения из llm_preferences (AC 4.3, AC 4.5)."""
     language = LANGUAGES.get(str(prefs.get("cover_letter_language", "ru")).lower(), prefs.get("cover_letter_language"))
     tone = str(prefs.get("tone") or "professional")
-    tone_text = TONES.get(tone, tone)
-    max_words = int(prefs.get("cover_letter_max_words") or 250)
     focus = [str(area) for area in prefs.get("focus_areas") or []]
-    focus_text = (
-        "Приоритетные направления опыта кандидата: " + "; ".join(focus) + ". Делай на них акцент, "
-        "только если они относятся к задачам вакансии и подтверждаются резюме.\n"
-    ) if focus else ""
-
-    return (
-        "Ты помогаешь бизнес/системному аналитику написать сопроводительное письмо к отклику на вакансию на hh.ru.\n"
-        "На вход — описание вакансии и резюме кандидата.\n\n"
-        "Структура письма:\n"
-        "1. Короткое приветствие и одна фраза: на какую позицию отклик и чем эта позиция интересна кандидату.\n"
-        "2. 2–3 ключевые задачи или требования из вакансии, и к каждой — конкретный опыт из резюме "
-        "(что сделано, в каком домене, с каким результатом). Не пересказывай резюме целиком.\n"
-        "3. Вежливое предложение обсудить детали или провести интервью.\n"
-        "4. Подпись — имя кандидата из резюме.\n\n"
-        "Правила:\n"
-        f"- Письмо пишется на {language} языке. Тон — {tone_text}.\n"
-        f"- Объём — не более {max_words} слов, 3–4 коротких абзаца.\n"
-        "- Используй только факты из резюме. Не придумывай опыт, инструменты, цифры и достижения. "
-        "Если требование вакансии резюме не подтверждает — не упоминай его.\n"
-        "- Не используй заглушки вида [Имя], [Компания]. Название компании бери из вакансии; "
-        "если имени контактного лица нет — нейтральное приветствие.\n"
-        "- Обычный текст без Markdown: без заголовков, списков, жирного шрифта. Абзацы разделяй пустой строкой.\n"
-        "- Избегай штампов: «команда профессионалов», «динамично развивающаяся компания», «стрессоустойчивость».\n"
-        f"{focus_text}\n"
-        "В поле matches перечисли пункты соответствия, на которых построено письмо: requirement — требование "
-        "или задача из вакансии, cv_evidence — дословная короткая цитата из резюме, которая его подтверждает."
-    )
+    return load_prompt({
+        "language": language,
+        "tone": TONES.get(tone, tone),
+        "max_words": int(prefs.get("cover_letter_max_words") or 250),
+        "focus_areas": "; ".join(focus) if focus else "не заданы",
+    })
 
 
 def build_input(vacancy: dict[str, Any], cv_text: str) -> str:
