@@ -69,7 +69,6 @@ LETTER_SCHEMA: dict[str, Any] = {
 
 WORD = ("слово", "слова", "слов")
 _WORD_RE = re.compile(r"\w+(?:[-']\w+)*")
-_VERSION_RE = re.compile(r"^cl_(\d+)(?:_v(\d+))?\.md$")
 _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 
@@ -156,16 +155,20 @@ def count_words(text: str) -> int:
     return len(_WORD_RE.findall(text))
 
 
-def next_letter_path(vacancy_id: str, letters_dir: Path = LETTERS_DIR) -> tuple[Path, int]:
-    """Путь для новой версии письма: cl_{id}.md, затем _v2, _v3 … (номер = наибольший + 1, AC 4.4)."""
+def next_version_path(vacancy_id: str, folder: Path, prefix: str = "cl") -> tuple[Path, int]:
+    """Путь для новой версии файла: {prefix}_{id}.md, затем _v2, _v3 … (номер = наибольший + 1).
+
+    Используется для писем (cl, AC 4.4) и советов по резюме (cv_tips, AC 5.5)."""
+    version_re = re.compile(rf"^{re.escape(prefix)}_(\d+)(?:_v(\d+))?\.md$")
     versions = []
-    for path in letters_dir.glob(f"cl_{vacancy_id}*.md"):
-        match = _VERSION_RE.match(path.name)
+    for path in folder.glob(f"{prefix}_{vacancy_id}*.md"):
+        match = version_re.match(path.name)
         if match and match.group(1) == vacancy_id:
             versions.append(int(match.group(2) or 1))
     version = max(versions, default=0) + 1
-    name = f"cl_{vacancy_id}.md" if version == 1 else f"cl_{vacancy_id}_v{version}.md"
-    return letters_dir / name, version
+    stem = f"{prefix}_{vacancy_id}"
+    name = f"{stem}.md" if version == 1 else f"{stem}_v{version}.md"
+    return folder / name, version
 
 
 def _yaml(value: Any) -> str:
@@ -319,7 +322,7 @@ def generate_cover_letter(vacancy_id: str, letters_dir: Optional[Path] = None) -
 
     letters_dir = letters_dir or LETTERS_DIR
     letters_dir.mkdir(parents=True, exist_ok=True)
-    path, version = next_letter_path(str(vacancy["id"]), letters_dir)
+    path, version = next_version_path(str(vacancy["id"]), letters_dir)
     path.write_text(render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words),
                     encoding="utf-8")
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
