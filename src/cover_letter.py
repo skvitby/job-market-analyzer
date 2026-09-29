@@ -25,7 +25,7 @@ PROMPT_PATH = PROJECT_ROOT / "prompts" / "cover_letter.md"  # текст инс�
 # Пункты ручной проверки письма (AC 4.4); то, что проверяет код (цитаты, AC 4.6), сюда не входит.
 BEFORE_SENDING = (
     "Все утверждения подтверждаются резюме (см. «На чём построено письмо»)",
-    "Числа совпадают с резюме",
+    "Сроки и числа не завышены",
     "Язык и тон подходят вакансии",
     "Фразы читаются естественно",
 )
@@ -74,12 +74,14 @@ _PLACEHOLDER_RE = re.compile(r"\{(\w+)\}")
 _FRONTMATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n", re.DOTALL)
 
 
-def load_prompt(values: dict[str, Any], path: Path = PROMPT_PATH) -> str:
+def load_prompt(values: dict[str, Any], path: Optional[Path] = None) -> str:
     """Текст промпта из файла с подстановкой {плейсхолдеров}; frontmatter (описание для Obsidian) отбрасывается.
 
+    path по умолчанию — PROMPT_PATH (читается при вызове, чтобы скрипт сравнения мог подставить вариант промпта).
     Все плейсхолдеры файла должны быть в values, и наоборот — иначе ValueError:
     так опечатка в файле промпта не уйдёт в модель незамеченной.
     """
+    path = path or PROMPT_PATH
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
     if not path.exists():
         raise FileNotFoundError(f"Не найден файл промпта {shown}")

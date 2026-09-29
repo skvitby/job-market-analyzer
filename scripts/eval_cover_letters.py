@@ -9,6 +9,8 @@
     .venv\\Scripts\\python.exe -m scripts.eval_cover_letters --model claude-haiku-4-5
     .venv\\Scripts\\python.exe -m scripts.eval_cover_letters --provider ollama --model qwen3-4b-8k
     .venv\\Scripts\\python.exe -m scripts.eval_cover_letters --model claude-sonnet-5-5 --vacancy 137493556
+    .venv\\Scripts\\python.exe -m scripts.eval_cover_letters --model claude-haiku-4-5 \\
+        --prompt prompts/experiments/cover_letter_a.md --tone professional
 """
 
 import argparse
@@ -16,6 +18,7 @@ import logging
 import re
 import time
 from datetime import datetime
+from pathlib import Path
 
 from src import cover_letter, llm_service
 from src.config import PROJECT_ROOT
@@ -47,6 +50,10 @@ def main() -> None:
     parser.add_argument("--provider", default="anthropic", choices=sorted(llm_service.PROVIDERS))
     parser.add_argument("--model", required=True, help="например claude-haiku-4-5, claude-sonnet-5-5, qwen3-4b-8k")
     parser.add_argument("--vacancy", action="append", help="ID вакансии (можно несколько); по умолчанию — набор приёмки")
+    parser.add_argument("--prompt", type=Path, help="вариант промпта вместо prompts/cover_letter.md")
+    parser.add_argument("--tone", help="tone вместо значения из preferences.json, например professional")
+    parser.add_argument("--plan", action="store_true",
+                        help="добавить в ответ поле plan (перед letter): на какую цитату опирается каждый абзац")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
@@ -59,8 +66,26 @@ def main() -> None:
                                        base_url=defaults["base_url"], batch_size=1,
                                        timeout=float(defaults["timeout"]))
     llm_service.get_settings = cover_letter.get_settings = lambda task: settings
+    label = args.model
+    if args.prompt:
+        cover_letter.PROMPT_PATH = args.prompt.resolve()
+        label += f"-{args.prompt.stem}"
+    if args.tone:
+        load = cover_letter.load_preferences
+        cover_letter.load_preferences = lambda: {**load(), "llm_preferences": {**load()["llm_preferences"],
+                                                                              "tone": args.tone}}
+        label += f"-{args.tone}"
+    if args.plan:
+        # Поле plan вставляется перед letter: модель сначала связывает абзацы с цитатами, потом пишет.
+        schema = cover_letter.LETTER_SCHEMA
+        props = {k: v for k, v in schema["properties"].items() if k != "letter"}
+        props["plan"] = {"type": "array", "items": {"type": "string"}}
+        props["letter"] = schema["properties"]["letter"]
+        cover_letter.LETTER_SCHEMA = {**schema, "properties": props,
+                                      "required": [*[r for r in schema["required"] if r != "letter"], "plan", "letter"]}
+        label += "-plan"
 
-    out_dir = PROJECT_ROOT / "reports" / "eval" / f"{args.model}-{datetime.now():%Y%m%d-%H%M}"
+    out_dir = PROJECT_ROOT / "reports" / "eval" / f"{label}-{datetime.now():%Y%m%d-%H%M}"
     results = []
     for vacancy_id in args.vacancy or DEFAULT_VACANCIES:
         started = time.monotonic()
@@ -73,7 +98,9 @@ def main() -> None:
         for warning in warnings:
             print(f"    Внимание: {warning}")
 
-    print(f"\nМодель: {args.provider}/{args.model} · письма: {out_dir.relative_to(PROJECT_ROOT)}\n")
+    prompt = args.prompt or cover_letter.PROMPT_PATH.relative_to(PROJECT_ROOT)
+    print(f"\nМодель: {args.provider}/{args.model} · промпт: {prompt} · tone: {args.tone or 'из preferences.json'}"
+          f" · письма: {out_dir.relative_to(PROJECT_ROOT)}\n")
     print("| Вакансия | Файл | Слов | Цитаты найдены | Без подтверждения | Из них, возможно, в резюме | Сек |")
     print("|---|---|---|---|---|---|---|")
     for vacancy_id, summary, note in results:
