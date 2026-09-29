@@ -26,7 +26,7 @@ Python 3.11+, HeadHunter API v1, Claude API (Anthropic SDK), Click/Typer (CLI).
 |---|---|---|
 | `fetch` | Выгружает вакансии с HH.ru по фильтрам из профиля (US-02) | `data/raw_vacancies_{timestamp}.json` |
 | `analyze` | Gap Analysis: частота навыков на рынке и сравнение с резюме (US-03) | `reports/market_skills_summary.md` |
-| `cover-letter <vacancy_id>` | Сопроводительное письмо под вакансию через Claude API (US-04) | `reports/cover_letters/cl_{vacancy_id}.md` |
+| `cover-letter <vacancy_id>` | Сопроводительное письмо под вакансию через LLM (US-04) | `reports/cover_letters/cl_{vacancy_id}.md`, повторно — `_v2`, `_v3` … |
 | `cv-tips <vacancy_id>` | 3–5 советов по адаптации резюме под вакансию (US-05) | `reports/cv_tips_{vacancy_id}.md` |
 
 Типовой сценарий:
@@ -60,6 +60,11 @@ python -m src.cli cv-tips 123456789
    python -m src.cli fetch --region 16 --schedule remote   # разово переопределить профиль
    ```
    Первый запуск выгружает вакансии за 14 дней, последующие — с момента предыдущей выгрузки.
+4. Сгенерировать сопроводительное письмо (ID — число из ссылки `hh.ru/vacancy/<ID>`):
+   ```
+   python -m src.cli cover-letter 137493556
+   ```
+   Вакансия берётся из локальных данных, а если её там нет — запрашивается у HH. Письмо пишет LLM, заданная в `llm_preferences.llm_providers.cv_processing`; язык, тон, акценты и ориентир объёма — `cover_letter_language`, `tone`, `focus_areas`, `cover_letter_max_words` (по умолчанию 250 слов). Существующие письма не перезаписываются: повторный запуск создаёт `cl_{id}_v2.md`, `cl_{id}_v3.md` и т.д., чтобы не потерять ручные правки. Под текстом письма — свёрнутый блок «На чём построено письмо»: требования вакансии и подтверждающие цитаты из резюме, чтобы проверить факты перед отправкой.
 
 ## Планируемая структура проекта
 
@@ -73,6 +78,7 @@ job-market-analyzer/
 │   ├── config.py          # Загрузка profile/preferences.json и значения по умолчанию
 │   ├── hh_client.py       # Интеграция с API HH.ru
 │   ├── analyzer.py        # Модуль парсинга навыков и Gap-анализа
+│   ├── cover_letter.py    # Генерация сопроводительных писем (US-04)
 │   ├── llm_service.py     # Интеграция с Claude API
 │   └── cli.py             # Интерфейс командной строки
 ├── .env.example           # Шаблон конфига с переменными окружения
@@ -88,7 +94,7 @@ job-market-analyzer/
 - [x] US-01: Конфигурационный профиль `profile/preferences.json`
 - [x] US-02: Сбор вакансий с HH.ru
 - [ ] US-03: Анализ рынка и Gap Analysis
-- [ ] US-04: Генерация сопроводительных писем через Claude API
+- [ ] US-04: Генерация сопроводительных писем (в работе)
 - [ ] US-05: Рекомендации по адаптации резюме
 
 Открытые вопросы (накопление данных, отказоустойчивость и стоимость LLM-вызовов, полнота текста для Gap-анализа) описаны в разделе 8 `requirements.md`.

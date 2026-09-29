@@ -11,8 +11,10 @@ from typing import Any, Optional
 import typer
 
 from src.analyzer import analyze as run_analysis
+from src.cover_letter import generate_cover_letter
 from src.hh_client import HHApiError, fetch_details, fetch_vacancies
 from src.llm_service import LLMError
+from src.config import PROJECT_ROOT
 from src.text_utils import VACANCY, count
 
 app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакансий BA/SA.", no_args_is_help=True)
@@ -108,6 +110,28 @@ def analyze(
     for warning in warnings:
         typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
     typer.secho(f"Готово: в отчёте {count(total, *VACANCY)} → {path}", fg=typer.colors.GREEN)
+
+
+@app.command("cover-letter")
+def cover_letter(
+    vacancy_id: str = typer.Argument(..., help="ID вакансии HH — число из ссылки hh.ru/vacancy/<ID>"),
+) -> None:
+    """Генерирует сопроводительное письмо под вакансию в reports/cover_letters/ (US-04).
+
+    Вакансия берётся из кэша data/details/ и выгрузок data/, при отсутствии — запрашивается у HH.
+    Письмо пишет LLM из llm_providers.cv_processing по profile/my_cv.md; язык, тон, акценты и объём —
+    из llm_preferences (profile/preferences.json). Существующие письма не перезаписываются:
+    повторный запуск создаёт следующую версию cl_{id}_v2.md, _v3.md …
+    """
+    try:
+        path, version, warnings = generate_cover_letter(vacancy_id)
+    except (FileNotFoundError, ValueError, HHApiError, LLMError) as exc:
+        typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    for warning in warnings:
+        typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
+    note = f" (версия {version}, предыдущие не изменены)" if version > 1 else ""
+    typer.secho(f"Готово: письмо → {path.relative_to(PROJECT_ROOT)}{note}", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":
