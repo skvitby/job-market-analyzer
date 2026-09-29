@@ -35,6 +35,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "cover_letter_language": "ru",
         "tone": "professional",
         "focus_areas": [],
+        "cover_letter_max_words": 250,  # AC 4.5: ориентир объёма письма
         # AC 1.5, ADR-001: провайдер и модель LLM отдельно для вакансий и для резюме.
         "llm_providers": {
             "vacancy_analysis": {"provider": "anthropic", "model": "claude-haiku-4-5"},
