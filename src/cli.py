@@ -5,6 +5,7 @@
 
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -12,6 +13,7 @@ import typer
 
 from src.analyzer import analyze as run_analysis
 from src.cover_letter import generate_cover_letter
+from src.cv_tips import generate_cv_tips
 from src.hh_client import HHApiError, fetch_details, fetch_vacancies
 from src.llm_service import LLMError
 from src.config import PROJECT_ROOT
@@ -23,6 +25,11 @@ app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакан
 @app.callback()
 def main() -> None:
     """Job Market Analyzer: сбор и анализ вакансий BA/SA."""
+    # Вывод не в окно консоли (перехват, `!` в Claude Code, запуск по расписанию) Python на Windows
+    # пишет в cp1251: кириллица искажается, а на «→» команда падает. Переключаем такой вывод на UTF-8 (Q15).
+    for stream in (sys.stdout, sys.stderr):
+        if (stream.encoding or "").lower().replace("-", "") != "utf8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     # Технические строки HTTP-клиента («HTTP Request: POST … 200 OK») пользователю не нужны (Z-10);
     # предупреждения и ошибки, а также сообщения SDK о повторах запросов остаются.
@@ -132,6 +139,28 @@ def cover_letter(
         typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
     note = f" (версия {version}, предыдущие не изменены)" if version > 1 else ""
     typer.secho(f"Готово: письмо → {path.relative_to(PROJECT_ROOT)}{note}", fg=typer.colors.GREEN)
+
+
+@app.command("cv-tips")
+def cv_tips(
+    vacancy_id: str = typer.Argument(..., help="ID вакансии HH — число из ссылки hh.ru/vacancy/<ID>"),
+) -> None:
+    """Советы по адаптации резюме под вакансию в reports/cv_tips/ (US-05).
+
+    Вакансия берётся так же, как для письма: кэш data/details/, выгрузки data/, при отсутствии — HH.
+    Советы даёт LLM из llm_providers.cv_processing по profile/my_cv.md; основания, числа и термины
+    проверяются по резюме кодом. Существующие файлы не перезаписываются: повторный запуск создаёт
+    следующую версию cv_tips_{id}_v2.md, _v3.md …
+    """
+    try:
+        path, version, warnings = generate_cv_tips(vacancy_id)
+    except (FileNotFoundError, ValueError, HHApiError, LLMError) as exc:
+        typer.secho(f"Ошибка: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    for warning in warnings:
+        typer.secho(f"Внимание: {warning}", fg=typer.colors.YELLOW)
+    note = f" (версия {version}, предыдущие не изменены)" if version > 1 else ""
+    typer.secho(f"Готово: советы → {path.relative_to(PROJECT_ROOT)}{note}", fg=typer.colors.GREEN)
 
 
 if __name__ == "__main__":
