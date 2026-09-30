@@ -15,6 +15,16 @@ tags: [user-guide, job-market-analyzer]
 
 ## Запуск
 
+**Синтаксис:**
+
+```
+.venv\Scripts\python.exe -m src.cli fetch [--role <роль>]… [--region <ID>]… [--experience <уровень>]… [--employment <тип>]… [--schedule <график>]… [--min-salary <сумма>] [--no-details]
+```
+
+Все параметры необязательны, без них используются настройки профиля. Значения — в таблице «Опции» ниже.
+
+**Примеры:**
+
 ```powershell
 .venv\Scripts\python.exe -m src.cli fetch                                  # по настройкам профиля
 .venv\Scripts\python.exe -m src.cli fetch --region 16                      # только Беларусь

@@ -16,6 +16,12 @@ fetch → analyze → выбор вакансии → cv-tips → правка �
 
 ## 1. Обновить базу вакансий
 
+```
+.venv\Scripts\python.exe -m src.cli fetch [--region <ID>]…
+```
+
+Пример — только Беларусь:
+
 ```powershell
 .venv\Scripts\python.exe -m src.cli fetch --region 16
 ```
@@ -23,6 +29,12 @@ fetch → analyze → выбор вакансии → cv-tips → правка �
 Догружает вакансии с момента прошлой выгрузки и их полные описания. Раз в несколько дней достаточно. → [fetch](fetch.md)
 
 ## 2. Посмотреть рынок и своё место на нём
+
+```
+.venv\Scripts\python.exe -m src.cli analyze [--area <город>] [--days <N>]
+```
+
+Пример — только Минск:
 
 ```powershell
 .venv\Scripts\python.exe -m src.cli analyze --area Минск
@@ -43,16 +55,28 @@ fetch → analyze → выбор вакансии → cv-tips → правка �
 
 ## 4. Адаптировать резюме под вакансию
 
+```
+.venv\Scripts\python.exe -m src.cli cv-tips <vacancy_id>
+```
+
+Пример:
+
 ```powershell
 .venv\Scripts\python.exe -m src.cli cv-tips 137587921
 ```
 
-Открыть `reports/cv_tips/cv_tips_137587921.md`, по каждому совету решить **взять / поправить / отбросить**, подходящее «стало» перенести в резюме на hh.ru. → [cv-tips](cv-tips.md)
+Открыть `reports/cv_tips/cv_tips_<vacancy_id>.md` (в примере — `cv_tips_137587921.md`), по каждому совету решить **взять / поправить / отбросить**, подходящее «стало» перенести в резюме на hh.ru. → [cv-tips](cv-tips.md)
 
 > [!important] Резюме правится только вручную
 > Команда не меняет `profile/my_cv.md`. В него переносите только то, что подходит для всех вакансий (например, новый навык в «Навыки»). Правки «под одну компанию» — только в резюме на hh.ru для этого отклика, иначе следующие письма и советы будут строиться на подогнанном резюме.
 
 ## 5. Сгенерировать письмо
+
+```
+.venv\Scripts\python.exe -m src.cli cover-letter <vacancy_id>
+```
+
+Пример:
 
 ```powershell
 .venv\Scripts\python.exe -m src.cli cover-letter 137587921

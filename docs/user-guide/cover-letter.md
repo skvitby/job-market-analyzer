@@ -15,13 +15,23 @@ tags: [user-guide, job-market-analyzer]
 
 ## Запуск
 
+**Синтаксис:**
+
+```
+.venv\Scripts\python.exe -m src.cli cover-letter <vacancy_id>
+```
+
+- `<vacancy_id>` — ID вакансии, число из ссылки `hh.ru/vacancy/<ID>`.
+
+Нужен файл резюме `profile/my_cv.md`.
+
+**Пример:**
+
 ```powershell
 .venv\Scripts\python.exe -m src.cli cover-letter 137587921
 ```
 
 Через `!` в Claude Code: `! .venv/Scripts/python.exe -m src.cli cover-letter 137587921`.
-
-`137587921` — ID вакансии, число из ссылки `hh.ru/vacancy/<ID>`. Нужен файл резюме `profile/my_cv.md`.
 
 ## Как получается письмо
 

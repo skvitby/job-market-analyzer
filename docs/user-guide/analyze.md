@@ -15,6 +15,16 @@ tags: [user-guide, job-market-analyzer]
 
 ## Запуск
 
+**Синтаксис:**
+
+```
+.venv\Scripts\python.exe -m src.cli analyze [--data <файл>] [--days <N>] [--area <город>] [--no-llm] [--llm-refresh]
+```
+
+Все параметры необязательны, без них анализируются все накопленные вакансии. Значения — в таблице «Опции» ниже.
+
+**Примеры:**
+
 ```powershell
 .venv\Scripts\python.exe -m src.cli analyze                      # все накопленные вакансии
 .venv\Scripts\python.exe -m src.cli analyze --area Минск         # только Минск
