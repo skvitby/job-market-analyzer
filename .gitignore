@@ -22,3 +22,6 @@ reports/cv_tips/*
 !reports/cv_tips/.gitkeep
 reports/*.md
 reports/eval/
+
+# Obsidian
+.obsidian/
