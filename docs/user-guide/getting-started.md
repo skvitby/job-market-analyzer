@@ -27,7 +27,7 @@ pip install -r requirements.txt
 |---|---|---|---|
 | `HH_USER_AGENT` | Заголовок User-Agent для HH API: `AppName/1.0 (your_email@example.com)` | Придумать название приложения + свой email | Всегда для запросов к HH |
 | `HH_CLIENT_ID`, `HH_CLIENT_SECRET` | Данные приложения HH — нужны, чтобы получить токен | Выдаются после одобрения заявки на [dev.hh.ru](https://dev.hh.ru) | Один раз, для получения `HH_APP_TOKEN`; сам код их не читает |
-| `HH_APP_TOKEN` | Токен приложения — без него поиск HH возвращает 403 | `POST https://api.hh.ru/token` с `grant_type=client_credentials` по Client ID/Secret; токен бессрочный | Всегда для запросов к HH |
+| `HH_APP_TOKEN` | Токен приложения — без него поиск HH возвращает 403 | `POST https://api.hh.ru/token` с `grant_type=client_credentials` по Client ID/Secret; срок действия в документах проекта не зафиксирован — если HH снова отвечает 403, получить новый токен | Всегда для запросов к HH |
 | `HH_CURL_PATH` | Путь к `curl`, исключённому из VPN | Путь к `curl.exe`, который вы исключили в настройках VPN | Если работаете через VPN. Пусто — берётся `curl` из PATH |
 | `ANTHROPIC_API_KEY` | Ключ Claude API | [console.anthropic.com](https://console.anthropic.com), оплата — предоплатой, отдельно от подписки Claude | Если в `llm_providers` выбран `anthropic` (по умолчанию — обе задачи) |
 | `DEEPSEEK_API_KEY` | Ключ DeepSeek | [platform.deepseek.com](https://platform.deepseek.com) — см. [подключение DeepSeek и Qwen](deepseek-qwen-setup.md) | Только если выбран `deepseek` |
