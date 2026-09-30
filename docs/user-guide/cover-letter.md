@@ -145,7 +145,7 @@ Frontmatter для Obsidian: `vacancy_id`, название, работодат�
 
 **Когда стоит:** вакансия, в которую вы действительно хотите попасть, или письмо Haiku проще переписать, чем поправить.
 
-**Способ 1 — правка профиля.** В `profile/preferences.json`:
+**Способ 1 — правка профиля** ([что такое профиль](configuration.md#Что%20такое%20профиль)). В `profile/preferences.json`, блок `llm_preferences` → `llm_providers`:
 
 ```json
 "cv_processing": {"provider": "anthropic", "model": "claude-sonnet-5-5"}

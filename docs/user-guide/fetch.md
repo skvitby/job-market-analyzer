@@ -21,7 +21,7 @@ tags: [user-guide, job-market-analyzer]
 .venv\Scripts\python.exe -m src.cli fetch [--role <роль>]… [--region <ID>]… [--experience <уровень>]… [--employment <тип>]… [--schedule <график>]… [--min-salary <сумма>] [--no-details]
 ```
 
-Все параметры необязательны, без них используются настройки профиля. Значения — в таблице «Опции» ниже.
+Все параметры необязательны, без них используются настройки профиля — блок `search_settings` файла `profile/preferences.json` ([что такое профиль](configuration.md#Что%20такое%20профиль)). Значения — в таблице «Опции» ниже.
 
 **Примеры:**
 
