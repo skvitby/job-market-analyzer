@@ -153,7 +153,24 @@ Frontmatter для Obsidian: `vacancy_id`, название, работодат�
 
 Сгенерировать письмо (и при желании `cv-tips` по той же вакансии), затем вернуть `claude-haiku-4-5`. Пока стоит Sonnet, на него же уйдёт и сравнение с резюме в `analyze` — смена модели сбрасывает кэш сравнения, и оно пересчитается.
 
-**Способ 2 — без правки профиля**, через скрипт сравнения моделей:
+**Способ 2 — без правки профиля**, через скрипт сравнения моделей.
+
+Синтаксис:
+
+```
+.venv\Scripts\python.exe -m scripts.eval_cover_letters --model <модель> [--provider <провайдер>] [--vacancy <vacancy_id>]… [--prompt <файл>] [--tone <тон>] [--plan]
+```
+
+| Параметр | Что задаёт | Значения и где взять |
+|---|---|---|
+| `--model <модель>` | Модель, на которой писать письма (**обязательный**) | Идентификатор модели провайдера: `claude-sonnet-5-5`, `claude-haiku-4-5`; для других провайдеров — см. [Настройки](configuration.md) и [подключение DeepSeek и Qwen](deepseek-qwen-setup.md) |
+| `--provider <провайдер>` | Провайдер модели | `anthropic` (по умолчанию), `deepseek`, `qwen`, `ollama` |
+| `--vacancy <vacancy_id>` | Для каких вакансий писать; можно повторить | ID вакансии — число из ссылки `hh.ru/vacancy/<ID>`. Без параметра — три вакансии набора приёмки US-04 |
+| `--prompt <файл>` | Вариант промпта вместо `prompts/cover_letter.md` — для экспериментов | Путь к `.md`-файлу промпта, например из `prompts/experiments/` |
+| `--tone <тон>` | Тон письма вместо `tone` из профиля | `professional`, `professional_and_enthusiastic`, `friendly`, `formal` или своё описание |
+| `--plan` | Флаг без значения: модель дополнительно объясняет, на какую цитату опирается каждый абзац | — |
+
+Пример — письмо на Sonnet по одной вакансии:
 
 ```powershell
 .venv\Scripts\python.exe -m scripts.eval_cover_letters --model claude-sonnet-5-5 --vacancy 137587921
