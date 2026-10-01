@@ -1,0 +1,1611 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Market Analyzer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F5F7FA;
+  --surface: #FFFFFF;
+  --sunken: #EDF0F4;
+  --ink: #1E2836;
+  --ink-2: #4A5668;
+  --muted: #7A8597;
+  --line: #DCE1E8;
+  --line-strong: #C3CAD4;
+  --cover: #2F5FD0;
+  --cover-ink: #FFFFFF;
+  --cover-soft: #E3EAFA;
+  --gap: #B86E00;
+  --gap-soft: #FBF1E2;
+  --error: #C23B3B;
+  --error-soft: #FBE9E9;
+  --none: #C9CFD8;
+  --focus: #2F5FD0;
+  --shadow: 0 8px 28px rgba(30, 40, 54, .14);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12171F;
+    --surface: #1A212B;
+    --sunken: #151B24;
+    --ink: #E6EAF0;
+    --ink-2: #B3BCC9;
+    --muted: #8590A1;
+    --line: #2A3340;
+    --line-strong: #3A4553;
+    --cover: #7C9CF0;
+    --cover-ink: #10172A;
+    --cover-soft: #1F2A45;
+    --gap: #E0A23A;
+    --gap-soft: #2C2416;
+    --error: #EE7A7A;
+    --error-soft: #331C1F;
+    --none: #3A4452;
+    --focus: #9DB5F5;
+    --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12171F;
+  --surface: #1A212B;
+  --sunken: #151B24;
+  --ink: #E6EAF0;
+  --ink-2: #B3BCC9;
+  --muted: #8590A1;
+  --line: #2A3340;
+  --line-strong: #3A4553;
+  --cover: #7C9CF0;
+  --cover-ink: #10172A;
+  --cover-soft: #1F2A45;
+  --gap: #E0A23A;
+  --gap-soft: #2C2416;
+  --error: #EE7A7A;
+  --error-soft: #331C1F;
+  --none: #3A4452;
+  --focus: #9DB5F5;
+  --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.5 "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -.01em; }
+h1 { font-size: 24px; line-height: 1.25; }
+h2 { font-size: 18px; line-height: 1.3; }
+h3 { font-size: 15px; line-height: 1.4; }
+p { margin: 0; }
+a { color: var(--cover); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* ---------- shell ---------- */
+.app { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100vh; }
+.side {
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding: 20px 12px;
+}
+.brand { padding: 0 10px 20px; }
+.brand b { display: block; font-size: 15px; font-weight: 700; }
+.brand span { font-size: 13px; color: var(--muted); }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav a, .nav .soon {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; border-radius: 6px;
+  color: var(--ink-2); text-decoration: none; font-weight: 500;
+}
+.nav a:hover { background: var(--sunken); color: var(--ink); }
+.nav a[aria-current="page"] { background: var(--cover-soft); color: var(--ink); box-shadow: inset 3px 0 0 var(--cover); }
+.nav .soon { color: var(--muted); cursor: default; font-weight: 400; }
+.nav .soon small { font-size: 12px; }
+.side-foot { margin-top: auto; padding: 12px 10px 0; border-top: 1px solid var(--line); display: grid; gap: 10px; font-size: 13px; color: var(--muted); }
+.side-foot label { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-2); cursor: pointer; }
+.side-foot input { margin: 3px 0 0; accent-color: var(--error); }
+.theme-btn { justify-self: start; background: none; border: 1px solid var(--line-strong); border-radius: 6px; padding: 4px 10px; color: var(--ink-2); cursor: pointer; font-size: 13px; }
+
+main { padding: 28px 40px 140px; min-width: 0; }
+.screen { max-width: 1080px; }
+.screen[hidden] { display: none; }
+.head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+.head p { color: var(--ink-2); margin-top: 4px; max-width: 64ch; }
+
+/* ---------- controls ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+  border-radius: 6px; padding: 7px 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--ink-2); }
+a.btn { text-decoration: none; }
+.btn.primary { background: var(--cover); border-color: var(--cover); color: var(--cover-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+.btn.ghost { border-color: transparent; background: none; color: var(--ink-2); padding: 5px 8px; }
+.btn.ghost:hover { color: var(--ink); background: var(--sunken); }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; margin-bottom: 20px; }
+.group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.group > .lbl { font-size: 13px; color: var(--muted); margin-right: 2px; }
+.pill {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink-2);
+  border-radius: 999px; padding: 4px 12px; font-size: 14px; cursor: pointer;
+  display: inline-flex; gap: 6px; align-items: baseline;
+}
+.pill b { font-weight: 600; color: var(--muted); font-size: 13px; }
+.pill:hover { border-color: var(--line-strong); color: var(--ink); }
+.pill[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.pill[aria-pressed="true"] b { color: inherit; opacity: .75; }
+.search {
+  border: 1px solid var(--line); background: var(--surface); border-radius: 6px;
+  padding: 6px 10px; min-width: 260px;
+}
+.search::placeholder { color: var(--muted); }
+
+/* ---------- KPI line ---------- */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+.kpi { padding: 16px 20px 16px 0; }
+.kpi + .kpi { padding-left: 20px; border-left: 1px solid var(--line); }
+.kpi .v { font-size: 32px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
+.kpi .v small { font-size: 18px; font-weight: 500; }
+.kpi .k { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+.kpi .k span { color: var(--muted); display: block; }
+
+/* ---------- status swatches (shared visual language) ---------- */
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; flex: none; }
+.sw.ok { background: var(--cover); }
+.sw.exp { background: repeating-linear-gradient(135deg, var(--cover) 0 2px, var(--cover-soft) 2px 4.5px); box-shadow: inset 0 0 0 1px var(--cover); }
+.sw.gap { background: var(--gap-soft); box-shadow: inset 0 0 0 1.5px var(--gap); }
+.sw.none { background: var(--none); }
+.status { display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+.status.gap { color: var(--gap); font-weight: 500; }
+
+/* ---------- market fabric ---------- */
+.fabric-wrap { margin-bottom: 32px; }
+.fabric-title { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; margin-bottom: 10px; }
+.fabric-title p { color: var(--ink-2); font-size: 14px; max-width: 70ch; }
+.fabric { position: relative; display: flex; height: 44px; gap: 1px; }
+.fabric .seg { min-width: 1px; height: 100%; border-radius: 1px; cursor: default; }
+.fabric .seg.ok { background: var(--cover); }
+.fabric .seg.exp { background: repeating-linear-gradient(135deg, var(--cover) 0 2px, var(--cover-soft) 2px 5px); }
+.fabric .seg.gap { background: var(--gap-soft); box-shadow: inset 0 -3px 0 var(--gap); }
+.fabric .seg:hover, .fabric .seg:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; z-index: 1; }
+.fabric-mark { position: absolute; top: -6px; bottom: -6px; width: 2px; background: var(--ink); pointer-events: none; }
+.fabric-scale { position: relative; height: 22px; font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.fabric-scale span { position: absolute; transform: translateX(-50%); white-space: nowrap; font-weight: 600; color: var(--ink); }
+.fabric-scale span.end { transform: none; right: 0; font-weight: 400; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.hover-readout { font-size: 13px; color: var(--ink-2); min-height: 20px; margin-top: 4px; }
+
+/* ---------- tabs ---------- */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 16px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.tab {
+  background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  padding: 8px 12px; color: var(--ink-2); cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.tab b { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* ---------- skill bars ---------- */
+.bars { display: grid; grid-template-columns: minmax(140px, 260px) minmax(0, 1fr) 58px 78px 140px; column-gap: 0; align-items: center; }
+.bars .row { display: contents; }
+.bars .row > * { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--line); align-self: stretch; display: flex; align-items: center; min-width: 0; }
+.bars .row > :last-child { padding-right: 0; }
+.bars .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block !important; line-height: 22px; }
+.bars .name sup { color: var(--muted); font-weight: 400; }
+.bars .track { height: 100%; display: flex; align-items: center; }
+.bars .bar { height: 14px; border-radius: 2px; }
+.bars .bar.ok { background: var(--cover); }
+.bars .bar.exp { background: repeating-linear-gradient(135deg, var(--cover) 0 2px, var(--cover-soft) 2px 5px); box-shadow: inset 0 0 0 1px var(--cover); }
+.bars .bar.gap { background: var(--gap-soft); box-shadow: inset 0 0 0 1.5px var(--gap); }
+.bars .bar.none { background: var(--none); }
+.bars .pct { font-weight: 600; justify-content: flex-end; }
+.bars .cnt { font-size: 13px; color: var(--muted); padding-left: 10px !important; }
+.bars .st { font-size: 13px; color: var(--ink-2); gap: 6px; white-space: nowrap; }
+.bars .st.gap { color: var(--gap); font-weight: 500; }
+.bars .hrow > * { font-size: 13px; color: var(--muted); padding: 0 0 6px; }
+.note { font-size: 13px; color: var(--muted); margin-top: 12px; max-width: 80ch; }
+
+/* ---------- tables ---------- */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 13px; font-weight: 500; color: var(--muted); padding: 0 12px 8px 0; border-bottom: 1px solid var(--line-strong); white-space: nowrap; }
+td { padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; }
+.mini { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.mini i { display: block; height: 6px; background: var(--ink-2); border-radius: 1px; opacity: .55; }
+.mini b { font-weight: 600; width: 36px; text-align: right; }
+.quote { color: var(--ink-2); }
+.quote q { quotes: "«" "»"; }
+.act { font-size: 13px; color: var(--cover); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.section-gap { margin-top: 36px; }
+.callout { border-left: 3px solid var(--line-strong); padding: 8px 14px; color: var(--ink-2); font-size: 14px; background: var(--surface); margin: 12px 0 16px; max-width: 80ch; }
+.callout.warn { border-left-color: var(--gap); }
+.empty { padding: 28px 0; color: var(--ink-2); }
+
+.vac td:first-child a { color: var(--ink); font-weight: 500; text-decoration: none; }
+.vac td:first-child a:hover { color: var(--cover); text-decoration: underline; }
+.tag-new { display: inline-block; font-size: 12px; font-weight: 600; color: var(--cover); background: var(--cover-soft); border-radius: 4px; padding: 0 6px; margin-left: 6px; vertical-align: 1px; }
+.has { font-size: 13px; color: var(--ink-2); white-space: nowrap; }
+.has .no { color: var(--muted); }
+
+/* ---------- fetch panel ---------- */
+.panel { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 18px 20px; margin-bottom: 20px; }
+.panel[hidden] { display: none; }
+.panel-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px 24px; margin: 14px 0 18px; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+legend { font-size: 13px; color: var(--muted); padding: 0; margin-bottom: 6px; }
+.check { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; font-size: 14px; cursor: pointer; }
+.check input { margin: 3px 0 0; accent-color: var(--cover); }
+.panel-foot { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+
+/* ---------- vacancy card ---------- */
+.back { display: inline-block; margin-bottom: 14px; font-size: 14px; color: var(--ink-2); text-decoration: none; }
+.back:hover { color: var(--cover); }
+.vhead { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+.vhead .meta { color: var(--ink-2); margin-top: 4px; }
+.match { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 28px; padding: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 20px; align-items: center; }
+.match .v { font-size: 32px; font-weight: 600; line-height: 1.1; }
+.match .v small { font-size: 18px; color: var(--ink-2); font-weight: 500; }
+.cells { display: flex; gap: 3px; margin-bottom: 6px; }
+.cells i { flex: 1; height: 14px; border-radius: 2px; }
+.cells i.ok { background: var(--cover); }
+.cells i.gap { background: var(--gap-soft); box-shadow: inset 0 0 0 1.5px var(--gap); }
+.gaps-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+.chip { border: 1.5px solid var(--gap); color: var(--ink); background: var(--gap-soft); border-radius: 4px; padding: 0 8px; font-size: 13px; }
+
+.desc { max-width: 72ch; color: var(--ink); }
+.desc h3 { margin: 18px 0 6px; }
+.desc ul { margin: 0; padding-left: 20px; }
+.desc li { margin: 3px 0; }
+
+.versions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; font-size: 13px; color: var(--muted); }
+.ver { border: 1px solid var(--line); background: var(--surface); border-radius: 4px; padding: 1px 8px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+.ver[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+.letter-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: start; }
+.letter { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 22px 26px; }
+.letter-text { white-space: pre-line; max-width: 68ch; line-height: 1.6; }
+.letter-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.aside h3 { margin-bottom: 8px; }
+.aside + .aside { margin-top: 22px; }
+.aside ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+.aside li { margin: 4px 0; }
+.aside .check { font-size: 14px; color: var(--ink-2); }
+.demo-flag { font-size: 12px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 4px; padding: 0 6px; }
+
+.tips { display: grid; gap: 14px; max-width: 820px; }
+.tip { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; }
+.tip h3 { display: flex; gap: 10px; align-items: baseline; margin-bottom: 10px; }
+.tip h3 .n { color: var(--muted); font-weight: 500; }
+.tip dl { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 6px 16px; margin: 0 0 12px; font-size: 14px; }
+.tip dt { color: var(--muted); }
+.tip dd { margin: 0; }
+.became { background: var(--cover-soft); border-radius: 6px; padding: 10px 14px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.became span { font-weight: 500; }
+.flag { display: flex; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--ink-2); }
+.flag b { font-weight: 600; white-space: nowrap; }
+.flag.warn b { color: var(--gap); }
+.flag.info b { color: var(--muted); }
+
+/* ---------- settings ---------- */
+.form { display: grid; gap: 28px; max-width: 640px; }
+.form section { display: grid; gap: 14px; }
+.field { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 6px 20px; align-items: center; }
+.field > span { color: var(--ink-2); font-size: 14px; }
+.field > span code { display: block; font-size: 12px; color: var(--muted); font-family: inherit; }
+select, .input { border: 1px solid var(--line-strong); background: var(--surface); border-radius: 6px; padding: 6px 10px; width: 100%; }
+.seg-ctl { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 6px; overflow: hidden; }
+.seg-ctl button { border: 0; background: var(--surface); padding: 6px 14px; cursor: pointer; color: var(--ink-2); }
+.seg-ctl button + button { border-left: 1px solid var(--line-strong); }
+.seg-ctl button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.range { display: flex; gap: 12px; align-items: center; }
+.range input { flex: 1; accent-color: var(--cover); }
+.range output { width: 64px; font-weight: 600; }
+
+/* ---------- run console ---------- */
+.console {
+  position: fixed; left: 224px; right: 0; bottom: 0; z-index: 20;
+  background: var(--surface); border-top: 1px solid var(--line-strong); box-shadow: var(--shadow);
+  transform: translateY(100%); transition: transform .22s ease-out;
+}
+.console.open { transform: none; }
+.con-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 40px; }
+.con-cmd { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; background: var(--sunken); border-radius: 4px; padding: 1px 8px; }
+.con-title { font-weight: 600; }
+.con-prog { flex: 1; min-width: 140px; height: 6px; background: var(--sunken); border-radius: 3px; overflow: hidden; }
+.con-prog i { display: block; height: 100%; width: 0; background: var(--cover); transition: width .3s linear; }
+.console[data-state="error"] .con-prog i { background: var(--error); }
+.con-pct { width: 44px; text-align: right; font-weight: 600; }
+.con-state { font-size: 14px; font-weight: 600; }
+.console[data-state="done"] .con-state { color: var(--cover); }
+.console[data-state="error"] .con-state { color: var(--error); }
+.con-log {
+  margin: 0; padding: 4px 40px 14px; max-height: 168px; overflow-y: auto;
+  font: 13px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--ink-2);
+}
+.con-log[hidden] { display: none; }
+.con-log .err { color: var(--error); }
+.con-log .ok { color: var(--cover); }
+.con-msg { padding: 0 40px 12px; font-size: 14px; max-width: 900px; }
+.con-msg:empty { display: none; }
+.console[data-state="error"] .con-msg { color: var(--ink); }
+.con-msg b { color: var(--error); }
+
+.toast {
+  position: fixed; top: 16px; right: 16px; z-index: 30;
+  background: var(--ink); color: var(--paper); border-radius: 6px; padding: 8px 14px; font-size: 14px;
+  opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s; pointer-events: none;
+}
+.toast.show { opacity: 1; transform: none; }
+
+/* ---------- responsive ---------- */
+
+/* ---------- run panels & settings additions ---------- */
+.hint { font-size: 13px; color: var(--muted); margin-top: 4px; max-width: 64ch; }
+.lead { color: var(--ink-2); font-size: 14px; max-width: 76ch; margin-bottom: 14px; }
+code { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: .86em; background: var(--sunken); border-radius: 3px; padding: 0 4px; }
+h2 code { font-weight: 400; color: var(--muted); margin-left: 6px; }
+.cmd-line { font-size: 13px; color: var(--muted); margin: -4px 0 14px; }
+.cmd-line code { color: var(--ink); white-space: normal; word-break: break-word; }
+.span2 { grid-column: span 2; }
+.cols2 { display: grid; grid-template-columns: repeat(2, minmax(0, max-content)); gap: 0 24px; }
+.inline-field { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.input.num { width: 90px; }
+.inline-field .input:not(.num) { width: 180px; }
+
+.form .field.top { align-items: start; }
+.form .field > span:first-child small, .field > span small { display: block; font-size: 12px; color: var(--muted); }
+.stab[hidden] { display: none; }
+.radios { display: grid; gap: 6px; }
+.radios .check span b { font-weight: 500; display: block; }
+.radios .check span small { color: var(--muted); font-size: 13px; }
+
+.chips-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tchip { display: inline-flex; align-items: center; gap: 2px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: 4px; padding: 1px 2px 1px 8px; font-size: 14px; }
+.tchip button { border: 0; background: none; color: var(--muted); cursor: pointer; width: 22px; height: 22px; border-radius: 3px; line-height: 1; font-size: 16px; }
+.tchip button:hover { color: var(--error); background: var(--error-soft); }
+.chip-add { border: 1px dashed var(--line-strong); background: transparent; border-radius: 4px; padding: 2px 8px; font-size: 14px; width: 150px; }
+.chip-add::placeholder { color: var(--muted); }
+.chip-add:focus { border-style: solid; }
+
+table.dict td:first-child { font-weight: 500; white-space: nowrap; }
+table.dict td:nth-child(2) { width: 60%; }
+table.dict .tchip { font-size: 13px; }
+table.dict .chip-add { width: 120px; font-size: 13px; }
+.row-del { font-size: 13px; color: var(--muted); background: none; border: 0; cursor: pointer; padding: 2px 4px; text-decoration: underline; text-underline-offset: 2px; }
+.row-del:hover { color: var(--error); }
+tr.added td { background: var(--cover-soft); }
+.field-error { color: var(--error); font-size: 13px; }
+.field-error:empty { display: none; }
+#candTable select { width: auto; max-width: 260px; }
+.src { font-size: 13px; color: var(--ink-2); }
+
+.task { padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.task .lead { margin: 0; }
+.key-status { font-size: 14px; }
+.key-status b { font-weight: 600; }
+.key-status.ok b { color: var(--cover); }
+.key-status.warn b { color: var(--gap); }
+.more summary { cursor: pointer; color: var(--ink-2); font-size: 14px; margin-bottom: 10px; }
+.more .field { margin-top: 10px; }
+
+.conn-st { display: inline-flex; gap: 8px; align-items: center; white-space: nowrap; }
+.conn-st.ok { color: var(--ink); }
+.conn-st.no { color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.ok { background: var(--cover); }
+.dot.no { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.dot.err { background: var(--error); }
+.check-res { font-size: 13px; display: block; margin-top: 2px; }
+.check-res.ok { color: var(--cover); }
+.check-res.err { color: var(--error); }
+
+.savebar {
+  position: sticky; bottom: 0; z-index: 5; margin-top: 32px;
+  display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center;
+  background: var(--paper); border-top: 1px solid var(--line-strong); padding: 12px 0;
+  font-size: 14px; color: var(--muted);
+}
+.savebar.dirty { color: var(--ink); }
+.savebar.dirty #dirtyText::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--gap); margin-right: 8px; }
+.savebar[data-hide] { display: none; }
+@media (max-width: 760px) {
+  .span2 { grid-column: auto; }
+  .cols2 { grid-template-columns: minmax(0, 1fr); }
+  table.dict td:first-child { white-space: normal; }
+  table.dict td:nth-child(2) { width: auto; }
+  .inline-field .input:not(.num) { width: 100%; }
+}
+
+@media (max-width: 1100px) {
+  .letter-grid { grid-template-columns: minmax(0, 1fr); }
+  .panel-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 860px) {
+  .bars { grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) 50px 22px; }
+  .bars .cnt { display: none; }
+  .bars .st { justify-content: center; }
+  .bars .st .txt { display: none; }
+}
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side { position: sticky; top: 0; z-index: 15; height: auto; flex-direction: column; padding: 10px 16px 0; border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { padding: 0 0 6px; display: flex; gap: 10px; align-items: baseline; }
+  .nav { flex-direction: row; overflow-x: auto; gap: 0; margin: 0 -16px; padding: 0 10px; }
+  .nav a, .nav .soon { white-space: nowrap; border-radius: 0; padding: 8px 10px; }
+  .nav a[aria-current="page"] { background: none; box-shadow: inset 0 -2px 0 var(--cover); }
+  .side-foot { display: none; }
+  main { padding: 20px 16px 160px; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
+  .kpi:nth-child(4) { border-top: 1px solid var(--line); }
+  .kpi .v { font-size: 26px; }
+  .console { left: 0; }
+  .fabric-scale span.end { display: none; }
+  .bars .hrow .st { visibility: hidden; }
+  .vac td.emp { color: var(--ink-2); }
+  .con-bar { padding: 10px 16px; }
+  .con-log, .con-msg { padding-left: 16px; padding-right: 16px; }
+  .panel-grid { grid-template-columns: minmax(0, 1fr); }
+  .field { grid-template-columns: minmax(0, 1fr); }
+  .tip dl { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tip dt { margin-top: 6px; }
+  .search { min-width: 0; width: 100%; }
+  .match { grid-template-columns: minmax(0, 1fr); }
+  .letter { padding: 16px; }
+  /* tables collapse into stacked rows */
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody, table.stack tr, table.stack td { display: block; width: 100%; }
+  table.stack tr { border-bottom: 1px solid var(--line); padding: 10px 0; }
+  table.stack td { border: 0; padding: 2px 0; }
+  table.stack td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-size: 13px; }
+  table.stack td.num { text-align: left; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><b>Job Market Analyzer</b><span>рынок BA/SA</span></div>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#overview" data-nav="overview">Обзор рынка</a>
+      <a href="#gap" data-nav="gap">Gap-анализ</a>
+      <a href="#vacancies" data-nav="vacancies">Вакансии</a>
+      <a href="#settings" data-nav="settings">Настройки</a>
+      <span class="soon" aria-disabled="true">Тренды <small>скоро</small></span>
+    </nav>
+    <div class="side-foot">
+      <div>Данные на 30.09.2026, 23:56</div>
+      <label><input type="checkbox" id="failMode"> Демо: команды завершаются ошибкой</label>
+      <button class="theme-btn" id="themeBtn" type="button">Тема: системная</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <!-- 1. Обзор рынка -->
+    <section class="screen" id="s-overview" aria-labelledby="h-overview">
+      <div class="head">
+        <div>
+          <h1 id="h-overview">Обзор рынка</h1>
+          <p>Что чаще всего просят в вакансиях бизнес- и системных аналитиков и сколько из этого уже есть в резюме.</p>
+        </div>
+        <button class="btn primary" id="analyzeToggle" aria-expanded="false" aria-controls="analyzePanel" type="button">Обновить анализ</button>
+      </div>
+      <form class="panel" id="analyzePanel" data-cmd="analyze" hidden>
+        <h2>Параметры анализа</h2>
+        <div class="panel-grid">
+          <fieldset data-group="area">
+            <legend>Город</legend>
+            <label class="check"><input type="radio" name="area" value="Минск" data-arg='--area "Минск"' data-default="0" checked> Минск</label>
+            <label class="check"><input type="radio" name="area" value="" data-default="1"> Все города выгрузок</label>
+          </fieldset>
+          <fieldset data-group="days">
+            <legend>Период публикации</legend>
+            <label class="check"><input type="radio" name="days" data-default="1" checked> Без ограничения</label>
+            <label class="check"><input type="radio" name="days" data-arg="--days 21" data-default="0"> 21 день</label>
+            <label class="check"><input type="radio" name="days" data-arg="--days 14" data-default="0"> 14 дней</label>
+            <label class="check"><input type="radio" name="days" data-arg="--days 7" data-default="0"> 7 дней</label>
+          </fieldset>
+          <fieldset data-group="data">
+            <legend>Выгрузки</legend>
+            <label class="check"><input type="radio" name="data" data-default="1" checked> <span>Все файлы <span class="muted">(8)</span></span></label>
+            <label class="check"><input type="radio" name="data" data-arg="--data data/raw_vacancies_20260930_235651.json" data-default="0"> <span>Только последняя <span class="muted">(30.09, 23:56)</span></span></label>
+          </fieldset>
+          <fieldset>
+            <legend>LLM</legend>
+            <label class="check"><input type="checkbox" id="noLlm" data-arg="--no-llm"> Без LLM, только поиск по словарю</label>
+            <label class="check"><input type="checkbox" id="llmRefresh" data-arg="--llm-refresh"> Обработать заново вакансии из кэша</label>
+            <p class="hint">Без LLM не будет навыков вне словаря и сравнения с резюме.</p>
+          </fieldset>
+        </div>
+        <p class="cmd-line">Команда: <code data-preview></code></p>
+        <div class="panel-foot">
+          <button class="btn primary" type="submit" data-run="analyze">Запустить анализ</button>
+          <button class="btn ghost" type="button" data-close-panel>Свернуть</button>
+          <span class="muted small">Готовые ответы LLM берутся из кэша, повторный запуск по тем же вакансиям бесплатный.</span>
+        </div>
+      </form>
+      <div class="toolbar">
+        <div class="group" role="group" aria-label="Регион">
+          <span class="lbl">Регион</span>
+          <button class="pill" aria-pressed="true" type="button">Минск <b>59</b></button>
+          <button class="pill" aria-pressed="false" type="button" data-pick='input[name=area][value=""]'>Все города</button>
+        </div>
+        <div class="group" role="group" aria-label="Период публикации">
+          <span class="lbl">Период</span>
+          <button class="pill" aria-pressed="true" type="button">Весь период <b>59</b></button>
+          <button class="pill" aria-pressed="false" type="button" data-pick='input[name=days][data-arg="--days 14"]'>14 дней</button>
+          <button class="pill" aria-pressed="false" type="button" data-pick='input[name=days][data-arg="--days 7"]'>7 дней</button>
+        </div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="v">59</div><div class="k">вакансий<span>все с полным описанием</span></div></div>
+        <div class="kpi"><div class="v">22 <small>дня</small></div><div class="k">период публикации<span>09.09 – 30.09.2026</span></div></div>
+        <div class="kpi"><div class="v">60<small>%</small></div><div class="k">спроса закрывает резюме<span>с учётом частоты навыков</span></div></div>
+        <div class="kpi"><div class="v">49</div><div class="k">пробелов<span>из 89 сравнённых навыков</span></div></div>
+      </div>
+
+      <div class="fabric-wrap">
+        <div class="fabric-title">
+          <h2>Чем рынок покрыт резюме</h2>
+          <p>Каждая полоска — навык, её ширина — в скольких вакансиях он встречается. Слева то, что резюме подтверждает, справа пробелы.</p>
+        </div>
+        <div class="fabric" id="fabric" role="list" aria-label="Навыки рынка по статусу в резюме"></div>
+        <div class="fabric-scale" id="fabricScale"></div>
+        <div class="legend">
+          <span><i class="sw ok"></i>в «Навыках» резюме, 28</span>
+          <span><i class="sw exp"></i>только в опыте, 12</span>
+          <span><i class="sw gap"></i>пробел, 49</span>
+        </div>
+        <div class="hover-readout" id="fabricReadout" aria-live="polite"></div>
+      </div>
+
+      <h2 style="margin-bottom:10px">Рейтинг навыков</h2>
+      <div class="tabs" role="tablist" aria-label="Набор навыков">
+        <button class="tab" role="tab" aria-selected="true" data-rank="top" type="button">Топ-20</button>
+        <button class="tab" role="tab" aria-selected="false" data-rank="all" type="button">Все из словаря <b>79</b></button>
+        <button class="tab" role="tab" aria-selected="false" data-rank="llm" type="button">Найдены LLM <b>18</b></button>
+      </div>
+      <div class="bars" id="bars"></div>
+      <p class="note" id="barsNote"></p>
+    </section>
+
+    <!-- 2. Gap-анализ -->
+    <section class="screen" id="s-gap" aria-labelledby="h-gap" hidden>
+      <div class="head">
+        <div>
+          <h1 id="h-gap">Gap-анализ</h1>
+          <p>89 навыков рынка сопоставлены с резюме. Каждое совпадение подтверждено фрагментом резюме.</p>
+        </div>
+        <button class="btn primary" data-open-analyze type="button">Обновить анализ</button>
+      </div>
+      <div class="toolbar">
+        <div class="group" role="group" aria-label="Статус" id="gapFilter">
+          <button class="pill" aria-pressed="true" data-f="all" type="button">Все <b>89</b></button>
+          <button class="pill" aria-pressed="false" data-f="ok" type="button"><i class="sw ok"></i>В «Навыках» <b>28</b></button>
+          <button class="pill" aria-pressed="false" data-f="exp" type="button"><i class="sw exp"></i>Только в опыте <b>12</b></button>
+          <button class="pill" aria-pressed="false" data-f="gap" type="button"><i class="sw gap"></i>Пробелы <b>49</b></button>
+        </div>
+        <label class="sr" for="gapSearch">Найти навык</label>
+        <input class="search" id="gapSearch" type="search" placeholder="Найти навык">
+      </div>
+      <div class="callout">Цитаты из резюме в прототипе — демо-текст: настоящее резюме не попадает в репозиторий.</div>
+      <div class="tbl-wrap">
+        <table class="stack" id="gapTable">
+          <thead><tr><th>Навык</th><th>Частота на рынке</th><th>Статус</th><th>Где в резюме</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="section-gap">
+        <h2>Навыки вне словаря, найденные LLM</h2>
+        <div class="callout warn">Это интерпретация модели <b>claude-haiku-4-5</b> по 59 вакансиям, а не точный поиск. Частые навыки — кандидаты на пополнение словаря.</div>
+        <div class="tbl-wrap">
+          <table class="stack" id="llmTable">
+            <thead><tr><th>Навык</th><th>Частота на рынке</th><th>Статус</th><th>Где в резюме</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Вакансии -->
+    <section class="screen" id="s-vacancies" aria-labelledby="h-vac" hidden>
+      <div class="head">
+        <div>
+          <h1 id="h-vac">Вакансии</h1>
+          <p>Последняя выгрузка: 30.09.2026, 23:56. Найдено 22 вакансии, из них 7 новых.</p>
+        </div>
+        <button class="btn primary" id="fetchToggle" aria-expanded="false" aria-controls="fetchPanel" type="button">Собрать вакансии</button>
+      </div>
+
+      <form class="panel" id="fetchPanel" data-cmd="fetch" hidden>
+        <h2>Параметры сбора</h2>
+        <p class="hint">По умолчанию — значения из «Настройки → Поиск вакансий». Изменения здесь действуют только на этот запуск и передаются флагами.</p>
+        <div class="panel-grid">
+          <fieldset data-group="region">
+            <legend>Регионы hh</legend>
+            <label class="check"><input type="checkbox" data-arg="--region 113" data-default="1" checked> Россия <span class="muted">113</span></label>
+            <label class="check"><input type="checkbox" data-arg="--region 16" data-default="1" checked> Беларусь <span class="muted">16</span></label>
+            <label class="check"><input type="checkbox" data-arg="--region 1" data-default="0"> Москва <span class="muted">1</span></label>
+            <label class="check"><input type="checkbox" data-arg="--region 40" data-default="0"> Казахстан <span class="muted">40</span></label>
+          </fieldset>
+          <fieldset data-group="experience">
+            <legend>Опыт</legend>
+            <label class="check"><input type="checkbox" data-arg="--experience noExperience" data-default="0"> Без опыта</label>
+            <label class="check"><input type="checkbox" data-arg="--experience between1And3" data-default="1" checked> 1–3 года</label>
+            <label class="check"><input type="checkbox" data-arg="--experience between3And6" data-default="1" checked> 3–6 лет</label>
+            <label class="check"><input type="checkbox" data-arg="--experience moreThan6" data-default="1" checked> Более 6 лет</label>
+          </fieldset>
+          <fieldset data-group="employment">
+            <legend>Занятость</legend>
+            <label class="check"><input type="checkbox" data-arg="--employment full" data-default="1" checked> Полная</label>
+            <label class="check"><input type="checkbox" data-arg="--employment part" data-default="0"> Частичная</label>
+            <label class="check"><input type="checkbox" data-arg="--employment project" data-default="0"> Проектная</label>
+          </fieldset>
+          <fieldset data-group="schedule">
+            <legend>Формат работы</legend>
+            <label class="check"><input type="checkbox" data-arg="--schedule office" data-default="1" checked> В офисе</label>
+            <label class="check"><input type="checkbox" data-arg="--schedule hybrid" data-default="1" checked> Гибрид</label>
+            <label class="check"><input type="checkbox" data-arg="--schedule remote" data-default="1" checked> Удалённо</label>
+          </fieldset>
+          <fieldset data-group="role" class="span2">
+            <legend>Роли в названии вакансии</legend>
+            <div class="cols2" id="fetchRoles"></div>
+          </fieldset>
+          <fieldset>
+            <legend>Зарплата</legend>
+            <label class="inline-field"><span class="sr">Минимальная зарплата</span><input class="input" type="number" min="0" step="100" placeholder="не задана" data-argname="--min-salary"> <span class="muted">RUR</span></label>
+          </fieldset>
+          <fieldset>
+            <legend>Описания</legend>
+            <label class="check"><input type="checkbox" data-arg="--no-details"> Не загружать полные описания</label>
+            <p class="hint">Без описаний анализ идёт по коротким сниппетам и находит меньше навыков.</p>
+          </fieldset>
+        </div>
+        <p class="cmd-line">Команда: <code data-preview></code></p>
+        <div class="panel-foot">
+          <button class="btn primary" type="submit" data-run="fetch">Запустить сбор</button>
+          <button class="btn ghost" type="button" data-close-panel>Свернуть</button>
+          <span class="muted small">Ищем вакансии, опубликованные после прошлой выгрузки (26.09, 18:44). Описания загружаются только для новых.</span>
+        </div>
+      </form>
+
+      <div class="toolbar">
+        <div class="group" role="group" aria-label="Фильтр вакансий" id="vacFilter">
+          <button class="pill" aria-pressed="true" data-f="all" type="button">Все <b>22</b></button>
+          <button class="pill" aria-pressed="false" data-f="new" type="button">Новые <b>7</b></button>
+          <button class="pill" aria-pressed="false" data-f="letter" type="button">С письмом <b>4</b></button>
+          <button class="pill" aria-pressed="false" data-f="salary" type="button">С зарплатой <b>2</b></button>
+        </div>
+        <label class="sr" for="vacSearch">Найти вакансию</label>
+        <input class="search" id="vacSearch" type="search" placeholder="Название или работодатель">
+      </div>
+      <div class="tbl-wrap">
+        <table class="stack vac" id="vacTable">
+          <thead><tr><th>Вакансия</th><th>Работодатель</th><th>Город</th><th>Зарплата</th><th>Дата</th><th>Подготовлено</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. Карточка вакансии -->
+    <section class="screen" id="s-vacancy" aria-labelledby="h-v" hidden></section>
+
+    <!-- 5. Настройки -->
+    <section class="screen" id="s-settings" aria-labelledby="h-set" hidden>
+      <div class="head">
+        <div>
+          <h1 id="h-set">Настройки</h1>
+          <p>Профиль поиска, словарь навыков и модели. Хранятся в <code>profile/preferences.json</code>, ключи доступа — в <code>.env</code>.</p>
+        </div>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Разделы настроек">
+        <button class="tab" role="tab" aria-selected="true" data-stab="search" type="button">Поиск вакансий</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="dict" type="button">Словарь навыков <b id="dictCount">88</b></button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="llm" type="button">Модели LLM</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="letter" type="button">Письмо</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="conn" type="button">Подключения</button>
+      </div>
+
+      <form id="settingsForm" autocomplete="off">
+        <!-- Поиск вакансий -->
+        <div class="stab" data-pane="search">
+          <div class="form">
+            <section>
+              <h2>Что ищем</h2>
+              <div class="field top"><span>Роли в названии<small>Ищутся через OR, только в названии вакансии</small></span>
+                <div class="chips-edit" data-list="roles" data-label="роль"></div>
+              </div>
+              <div class="field top"><span>Слова-исключения<small>Вакансии с этими словами в названии не попадают в выгрузку</small></span>
+                <div class="chips-edit" data-list="excludeWords" data-label="слово"></div>
+              </div>
+            </section>
+            <section>
+              <h2>Где и на каких условиях</h2>
+              <div class="field top" role="group" aria-label="Регионы hh"><span>Регионы hh</span>
+                <div class="cols2">
+                  <label class="check"><input type="checkbox" checked> Россия <span class="muted">113</span></label>
+                  <label class="check"><input type="checkbox" checked> Беларусь <span class="muted">16</span></label>
+                  <label class="check"><input type="checkbox"> Москва <span class="muted">1</span></label>
+                  <label class="check"><input type="checkbox"> Санкт-Петербург <span class="muted">2</span></label>
+                  <label class="check"><input type="checkbox"> Минск <span class="muted">1002</span></label>
+                  <label class="check"><input type="checkbox"> Казахстан <span class="muted">40</span></label>
+                </div>
+              </div>
+              <div class="field top" role="group" aria-label="Опыт"><span>Опыт</span>
+                <div class="cols2">
+                  <label class="check"><input type="checkbox"> Без опыта</label>
+                  <label class="check"><input type="checkbox" checked> 1–3 года</label>
+                  <label class="check"><input type="checkbox" checked> 3–6 лет</label>
+                  <label class="check"><input type="checkbox" checked> Более 6 лет</label>
+                </div>
+              </div>
+              <label class="field"><span>Занятость</span>
+                <select><option value="full" selected>Полная</option><option value="part">Частичная</option><option value="project">Проектная</option><option value="">Любая</option></select>
+              </label>
+              <div class="field top" role="group" aria-label="Формат работы"><span>Формат работы</span>
+                <div class="cols2">
+                  <label class="check"><input type="checkbox" checked> В офисе</label>
+                  <label class="check"><input type="checkbox" checked> Гибрид</label>
+                  <label class="check"><input type="checkbox" checked> Удалённо</label>
+                </div>
+              </div>
+              <div class="field"><span>Зарплата от</span>
+                <span class="inline-field"><label class="sr" for="minSalary">Минимальная зарплата</label><input class="input" id="minSalary" type="number" min="0" step="100" placeholder="не задана">
+                  <label class="sr" for="currency">Валюта</label><select id="currency" style="width:auto"><option selected>RUR</option><option>BYR</option><option>USD</option><option>EUR</option><option>KZT</option></select></span>
+              </div>
+            </section>
+            <section>
+              <h2>Как собираем</h2>
+              <label class="field"><span>Глубина первой выгрузки<small>Дальше — с даты прошлой выгрузки</small></span>
+                <span class="inline-field"><input class="input num" type="number" min="1" max="30" value="14"> дней</span>
+              </label>
+              <label class="field"><span>Пауза между запросами к hh<small>Меньше 1 с — риск блокировки</small></span>
+                <span class="inline-field"><input class="input num" type="number" min="0.5" step="0.5" value="3"> с</span>
+              </label>
+            </section>
+          </div>
+        </div>
+
+        <!-- Словарь навыков -->
+        <div class="stab" data-pane="dict" hidden>
+          <p class="lead">По словарю ищутся навыки в описаниях вакансий. Русские слова — по основе: «интеграци» найдёт «интеграция» и «интеграций». Английские слова и короткие аббревиатуры (ТЗ, ПМИ) — только целым словом.</p>
+          <div class="toolbar">
+            <label class="sr" for="dictSearch">Найти навык или синоним</label>
+            <input class="search" id="dictSearch" type="search" placeholder="Найти навык или синоним">
+            <span class="inline-field add-skill">
+              <label class="sr" for="newSkill">Новый навык</label>
+              <input class="input" id="newSkill" placeholder="Новый навык">
+              <button class="btn" type="button" id="addSkill">Добавить навык</button>
+            </span>
+            <span class="field-error" id="newSkillErr" role="alert"></span>
+          </div>
+          <div class="tbl-wrap">
+            <table class="stack dict" id="dictTable">
+              <thead><tr><th>Навык</th><th>Синонимы</th><th class="num">В вакансиях</th><th><span class="sr">Действия</span></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <div class="section-gap">
+            <h2>Кандидаты на пополнение</h2>
+            <p class="lead">Навыки вне словаря из последнего анализа: key_skills вакансий на hh и найденные LLM. Добавьте как новый навык, как синоним к существующему или исключите из отчёта.</p>
+            <div class="tbl-wrap">
+              <table class="stack" id="candTable">
+                <thead><tr><th>Навык</th><th>Источник</th><th class="num">Вакансий</th><th>Куда добавить</th><th><span class="sr">Действия</span></th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="section-gap">
+            <h2>Исключённые навыки</h2>
+            <p class="lead">Не показываются в отчёте, даже если встречаются в вакансиях.</p>
+            <div class="chips-edit" data-list="excludedSkills" data-label="навык"></div>
+          </div>
+        </div>
+
+        <!-- Модели LLM -->
+        <div class="stab" data-pane="llm" hidden>
+          <div class="form">
+            <section class="task" data-task="vacancy_analysis">
+              <h2>Разбор вакансий <code>vacancy_analysis</code></h2>
+              <p class="lead">Ищет навыки вне словаря в описаниях вакансий. Работает в <code>analyze</code>.</p>
+              <label class="field"><span>Провайдер</span><select data-provider></select></label>
+              <label class="field"><span>Модель</span><input class="input" data-model list=""></label>
+              <p class="key-status" data-keystatus></p>
+              <details class="more"><summary>Дополнительно</summary>
+                <label class="field"><span>Адрес API<small>base_url, пусто — по умолчанию</small></span><input class="input" data-baseurl></label>
+                <label class="field"><span>Вакансий в одном запросе<small>batch_size</small></span><input class="input num" type="number" min="1" max="20" data-batch></label>
+              </details>
+            </section>
+            <section class="task" data-task="cv_processing">
+              <h2>Работа с резюме <code>cv_processing</code></h2>
+              <p class="lead">Сравнивает рынок с резюме, пишет письма и советы. Работает в <code>analyze</code>, <code>cover-letter</code>, <code>cv-tips</code>.</p>
+              <label class="field"><span>Провайдер</span><select data-provider></select></label>
+              <label class="field"><span>Модель</span><input class="input" data-model list=""></label>
+              <p class="key-status" data-keystatus></p>
+              <details class="more"><summary>Дополнительно</summary>
+                <label class="field"><span>Адрес API<small>base_url, пусто — по умолчанию</small></span><input class="input" data-baseurl></label>
+                <label class="field"><span>Вакансий в одном запросе<small>batch_size</small></span><input class="input num" type="number" min="1" max="20" data-batch></label>
+              </details>
+            </section>
+          </div>
+          <datalist id="m-anthropic"><option value="claude-haiku-4-5"><option value="claude-sonnet-5-5"><option value="claude-opus-5-5"></datalist>
+          <datalist id="m-deepseek"><option value="deepseek-chat"><option value="deepseek-reasoner"></datalist>
+          <datalist id="m-qwen"><option value="qwen-plus"><option value="qwen-max"><option value="qwen-turbo"></datalist>
+          <datalist id="m-ollama"><option value="qwen2.5:7b"><option value="llama3.1:8b"></datalist>
+        </div>
+
+        <!-- Письмо -->
+        <div class="stab" data-pane="letter" hidden>
+          <div class="form">
+            <div class="field"><span id="l-lang">Язык письма</span>
+              <div>
+                <div class="seg-ctl" role="group" aria-labelledby="l-lang">
+                  <button type="button" aria-pressed="true">Авто</button><button type="button" aria-pressed="false">Русский</button><button type="button" aria-pressed="false">English</button>
+                </div>
+                <p class="hint">Авто — по языку описания вакансии.</p>
+              </div>
+            </div>
+            <div class="field top" role="group" aria-label="Тон"><span>Тон</span>
+              <div class="radios">
+                <label class="check"><input type="radio" name="tone" value="professional"> <span><b>Профессиональный</b><small>сдержанный, без канцелярита</small></span></label>
+                <label class="check"><input type="radio" name="tone" value="professional_and_enthusiastic" checked> <span><b>Профессиональный с интересом</b><small>живая заинтересованность в задачах, без восторженных штампов</small></span></label>
+                <label class="check"><input type="radio" name="tone" value="friendly"> <span><b>Дружелюбный</b><small>простой, но деловой</small></span></label>
+                <label class="check"><input type="radio" name="tone" value="formal"> <span><b>Официально-деловой</b></span></label>
+              </div>
+            </div>
+            <div class="field top"><span>Фокусные темы<small>Что подчёркивать в письме, если это подтверждает резюме</small></span>
+              <div class="chips-edit" data-list="focusAreas" data-label="тему"></div>
+            </div>
+            <label class="field"><span>Объём письма<small>Ориентир; длиннее на 20% — предупреждение в отчёте</small></span>
+              <span class="inline-field"><input class="input num" type="number" min="80" max="500" step="10" value="250"> слов</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Подключения -->
+        <div class="stab" data-pane="conn" hidden>
+          <p class="lead">Ключи и токены хранятся в файле <code>.env</code> и в интерфейсе не показываются. Чтобы изменить значение, отредактируйте <code>.env</code> и перезапустите приложение.</p>
+          <div class="tbl-wrap">
+            <table class="stack" id="connTable">
+              <thead><tr><th>Подключение</th><th>Переменная</th><th>Статус</th><th><span class="sr">Проверка</span></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="savebar" id="saveBar">
+          <span id="dirtyText">Изменений нет</span>
+          <span class="group">
+            <button class="btn ghost" type="button" id="resetSettings" disabled>Отменить изменения</button>
+            <button class="btn primary" type="submit" id="saveSettings" disabled>Сохранить</button>
+          </span>
+        </div>
+      </form>
+    </section>
+  </main>
+</div>
+
+<!-- run console -->
+<div class="console" id="console" data-state="idle" role="region" aria-label="Выполнение команды">
+  <div class="con-bar">
+    <span class="con-cmd" id="conCmd">analyze</span>
+    <span class="con-title" id="conTitle"></span>
+    <span class="con-prog" aria-hidden="true"><i id="conBar"></i></span>
+    <span class="con-pct" id="conPct">0%</span>
+    <span class="con-state" id="conState" aria-live="polite"></span>
+    <button class="btn ghost" id="conLogBtn" type="button" aria-expanded="true">Скрыть лог</button>
+    <button class="btn" id="conAction" type="button">Отменить</button>
+  </div>
+  <div class="con-msg" id="conMsg"></div>
+  <pre class="con-log" id="conLog"></pre>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* ===== Данные ===== */
+// Рынок: reports/market_skills_summary.md (Минск, 59 вакансий, 09.09–30.09.2026)
+const SKILLS = [["BPMN",41],["API",35],["SQL",33],["UML",32],["Интеграции",31],["Банковский домен",28],["REST API",26],["Бизнес-анализ",24],["ТЗ",24],["Jira",22],["Постановка задач разработчикам",21],["Confluence",21],["Системный анализ",20],["User Story",19],["Разработка бизнес-требований",18],["Моделирование бизнес-процессов",16],["Figma",16],["ФТ",15],["JSON",14],["Use Case",14],["Swagger",14],["Микросервисы",14],["HTTP",13],["Аналитическое мышление",13],["Postman",12],["Анализ требований",12],["CRM",12],["Нефункциональные требования",12],["SOAP",11],["Agile",11],["XML",10],["Acceptance Criteria",10],["MS Office",10],["Scrum",10],["Excel",9],["OpenAPI",9],["Miro",9],["Реляционные БД",8],["PostgreSQL",8],["Автоматизация бизнес-процессов",8],["Декомпозиция требований",8],["ER-диаграмма",7],["UAT",7],["Draw.io",7],["Sequence Diagram",7],["Kafka",7],["Kanban",7],["Visio",7],["Сбор требований",6],["RabbitMQ",6],["Оптимизация бизнес-процессов",6],["Описание бизнес-процессов",6],["ГОСТ 34",5],["Git",5],["C4",5],["Управление проектами",5],["Oracle",4],["Разработка пользовательской документации",4],["ERP",4],["Redis",4],["SRS",4],["BRD",4],["Power BI",3],["DBeaver",3],["MS SQL",3],["Waterfall",3],["Tableau",2],["Управление ожиданиями",2],["Axure",2],["CI/CD",2],["Docker",2],["Деловая коммуникация",2],["Kubernetes",2],["SoapUI",1],["MySQL",1],["JWT",1],["OAuth",1],["gRPC",1],["ETL",1]];
+// [навык, доля %, статус ok|exp|gap, найден LLM]
+const GAP = [["BPMN",69,"ok",0],["API",59,"gap",0],["SQL",56,"ok",0],["UML",54,"ok",0],["Интеграции",53,"exp",0],["Банковский домен",47,"gap",0],["REST API",44,"gap",0],["Бизнес-анализ",41,"ok",0],["ТЗ",41,"ok",0],["Jira",37,"ok",0],["Confluence",36,"ok",0],["Постановка задач разработчикам",36,"ok",0],["Системный анализ",34,"exp",0],["User Story",32,"ok",0],["Разработка бизнес-требований",31,"ok",0],["Figma",27,"ok",0],["Моделирование бизнес-процессов",27,"ok",0],["ФТ",25,"ok",0],["JSON",24,"gap",0],["Swagger",24,"gap",0],["Use Case",24,"ok",0],["Микросервисы",24,"exp",0],["HTTP",22,"gap",0],["Аналитическое мышление",22,"ok",0],["CRM",20,"gap",0],["Postman",20,"gap",0],["Анализ требований",20,"ok",0],["Нефункциональные требования",20,"ok",0],["Agile",19,"ok",0],["SOAP",19,"gap",0],["Acceptance Criteria",17,"gap",0],["MS Office",17,"gap",0],["Scrum",17,"ok",0],["XML",17,"gap",0],["Excel",15,"gap",0],["Miro",15,"gap",0],["OpenAPI",15,"gap",0],["PostgreSQL",14,"ok",0],["Автоматизация бизнес-процессов",14,"ok",0],["Декомпозиция требований",14,"ok",0],["Реляционные БД",14,"gap",0],["Draw.io",12,"gap",0],["ER-диаграмма",12,"ok",0],["Kafka",12,"gap",0],["Kanban",12,"gap",0],["Sequence Diagram",12,"gap",0],["UAT",12,"ok",0],["Visio",12,"exp",0],["RabbitMQ",10,"gap",0],["Описание бизнес-процессов",10,"gap",0],["Оптимизация бизнес-процессов",10,"ok",0],["Сбор требований",10,"ok",0],["C4",8,"gap",0],["Git",8,"gap",0],["ГОСТ 34",8,"gap",0],["Управление проектами",8,"ok",0],["BRD",7,"gap",0],["ERP",7,"gap",0],["Oracle",7,"gap",0],["Redis",7,"gap",0],["SRS",7,"exp",0],["ГОСТ 19",7,"gap",1],["Кредитование",7,"gap",1],["Разработка пользовательской документации",7,"gap",0],["Camunda",5,"gap",1],["DBeaver",5,"gap",0],["MongoDB",5,"gap",1],["MS SQL",5,"exp",0],["Power BI",5,"gap",0],["Requirements analysis",5,"gap",1],["Waterfall",5,"gap",0],["Бизнес-процессы",5,"exp",1],["Banking domain",3,"gap",1],["ClickHouse",3,"gap",1],["Crypto",3,"gap",1],["E-commerce",3,"gap",1],["Message queues",3,"gap",1],["Mobile applications",3,"gap",1],["PlantUML",3,"gap",1],["Risk Management",3,"gap",1],["SDLC",3,"gap",1],["Анализ процессов",3,"ok",1],["Документирование",3,"exp",1],["Монолитная архитектура",3,"exp",1],["Платёжные системы",3,"gap",1],["Презентации",3,"exp",1],["Проектирование БД",3,"gap",1],["Разработка ПО",3,"exp",1],["Техническая документация",3,"exp",1]];
+// Демо-цитаты «только в опыте» (не из настоящего резюме)
+const EXP_QUOTES = {
+  "Интеграции": "Описал обмен данными портала с внешней системой обучения",
+  "Системный анализ": "Проводил системный анализ требований к модулям портала",
+  "Микросервисы": "Проект: клиентский портал (монолит и микросервисы)",
+  "Visio": "Схемы данных готовил в Visio",
+  "SRS": "Вёл SRS и ТЗ в Confluence",
+  "MS SQL": "Проектировал структуру таблиц на MS SQL",
+  "Бизнес-процессы": "Провёл аудит процессов отдела продаж",
+  "Документирование": "Документирование требований в Confluence",
+  "Монолитная архитектура": "работал с монолитной и микросервисной частями системы",
+  "Презентации": "презентовал результаты анализа заказчику",
+  "Разработка ПО": "участвовал во всех этапах разработки",
+  "Техническая документация": "готовил техническую документацию к релизам"
+};
+const STATUS_TEXT = { ok: "В «Навыках»", exp: "Только в опыте", gap: "Пробел", none: "Не сравнивался" };
+
+// Вакансии: data/raw_vacancies_20260930_235651.json (публичные данные hh)
+const VACANCIES = [["137173591","Бизнес-аналитик \\ Системный аналитик Middle","ЗефирГлобал","Минск",null,"2026-09-30"],["137354708","Системный аналитик & Бизнес аналитик","ИВЦ Минфина","Минск",null,"2026-09-30"],["136964170","Системный аналитик","Бэлл Интегратор","Минск",null,"2026-09-30"],["137973547","Senior System Analyst (Banking)","Научсофт","Минск",null,"2026-09-30"],["137140562","Системный аналитик","BMGM","Минск",null,"2026-09-30"],["130354328","Middle Systems Analyst - ведущий системный аналитик","Национальный центр электронных услуг,РУП","Минск",null,"2026-09-30"],["137828745","Бизнес-аналитик","Кредитон","Минск",null,"2026-09-30"],["137480923","Бизнес аналитик / Системный аналитик","МОСТРА-ГРУПП","Минск",null,"2026-09-29"],["137899254","Business/System Analyst (Mobile)","Белорусский народный банк","Минск",null,"2026-09-29"],["137863496","System Analyst/ Системный аналитик","Агентство цифровой трансформации","Минск",null,"2026-09-28"],["136962315","Бизнес-аналитик управления разработки цифровых продуктов","Банк БелВЭБ","Минск",null,"2026-09-30"],["135767305","Бизнес-аналитик","Оранж Процесс","Минск",[2600,4000],"2026-09-29"],["136902181","Системный аналитик управления ИТ и корпоративной архитектуры","Банк БелВЭБ","Минск",null,"2026-09-29"],["137846748","Ведущий системный аналитик","ЦНИИТУ","Минск",[2000,4000],"2026-09-28"],["134218946","Middle Бизнес-аналитик","СИСТЕМНЫЕ ТЕХНОЛОГИИ","Минск",null,"2026-09-29"],["137445278","Бизнес-аналитик","АЛЬФА-БАНК","Минск",null,"2026-09-28"],["130247647","Бизнес-аналитик","Национальный центр электронных услуг,РУП","Минск",null,"2026-09-28"],["137863250","Бизнес-аналитик","Агентство цифровой трансформации","Минск",null,"2026-09-28"],["136922721","Бизнес-аналитик (WEB-разработка)","«СпроАйТи»","Минск",null,"2026-09-29"],["137474247","Бизнес-аналитик Управления развития цифровых продуктов","Цептер Банк","Минск",null,"2026-09-29"],["133960724","Кредитный аналитик (крупный корпоративный бизнес)","Банк БелВЭБ","Минск",null,"2026-09-30"],["136489987","Главный специалист по развитию системы ДБО для юридических лиц (бизнес-аналитик)","Банк ВТБ (Беларусь)","Минск",null,"2026-09-29"]]
+  .map(([id, name, employer, city, salary, date]) => ({ id, name, employer, city, salary, date }));
+const NEW_IDS = new Set(["137173591","137354708","136964170","137973547","137140562","130354328","137828745"]);
+const RICH_ID = "137828745";
+
+// Состояние подготовленных материалов (в прототипе — в памяти страницы)
+const prepared = {
+  "137828745": { letters: [1, 2], tips: [1] },
+  "136902181": { letters: [1, 2, 3], tips: [1] },
+  "137863250": { letters: [1], tips: [1] },
+  "136922721": { letters: [1], tips: [1] }
+};
+
+/* ===== Демо-контент карточки (Кредитон) ===== */
+const DESC = {
+  intro: "Компания развивает онлайн-платформу выдачи займов под залог автомобиля: автоматизация бизнес-процессов, клиентский путь, новые цифровые продукты.",
+  blocks: [
+    ["Задачи", ["анализировать и оптимизировать бизнес-процессы компании", "собирать, структурировать и формализовывать бизнес-требования от внутренних заказчиков", "разрабатывать функциональные требования, user story, use case, BPMN-диаграммы и технические задания", "описывать интеграции с внешними информационными системами (кредитный регистр, госсервисы, платёжные системы, CRM)", "проводить приёмочное тестирование реализованного функционала"]],
+    ["Требования", ["опыт работы бизнес-аналитиком от 3 лет", "опыт подготовки бизнес-требований, технических заданий и проектной документации", "понимание жизненного цикла разработки ПО", "опыт моделирования процессов (BPMN, User Flow)", "аналитическое мышление, системный подход и внимание к деталям", "опыт работы с Jira, Confluence или аналогичными инструментами"]],
+    ["Будет преимуществом", ["опыт работы в банке, МФО, страховой или FinTech-проекте", "понимание процессов кредитования физических лиц", "понимание интеграции через REST API", "понимание SQL на базовом уровне", "знание принципов скоринга, антифрода, ЭДО и цифровой идентификации клиентов"]]
+  ],
+  skills: ["Бизнес-анализ", "Аналитическое мышление", "SQL", "Анализ бизнес-процессов", "Моделирование бизнес-процессов", "BPMN", "Разработка функциональных требований", "User Story", "Постановка задач разработчикам"]
+};
+// [статус, требование, подтверждение в резюме]
+const BASIS = [
+  ["ok", "опыт подготовки бизнес-требований, ТЗ и проектной документации", "Разработка бизнес-требований и ТЗ, согласование с заказчиком"],
+  ["ok", "опыт моделирования процессов (BPMN, User Flow)", "Моделирование AS-IS / TO-BE в BPMN"],
+  ["ok", "опыт работы с Jira, Confluence", "Документация в Confluence, постановка задач в Jira"],
+  ["ok", "понимание жизненного цикла разработки ПО", "Участие во всех этапах: от сбора требований до приёмки"],
+  ["ok", "аналитическое мышление, системный подход", "Аналитическое мышление"],
+  ["ok", "понимание SQL на базовом уровне", "SQL"],
+  ["gap", "опыт работы бизнес-аналитиком от 3 лет", "Бизнес-аналитик, продуктовая команда"]
+];
+const UNCONFIRMED = ["понимание процессов кредитования физических лиц", "понимание интеграции через REST API", "знание принципов скоринга и антифрода"];
+const LETTERS = {
+  1: "Здравствуйте!\n\nМеня заинтересовала вакансия бизнес-аналитика в компании Кредитон: близка задача автоматизировать процессы онлайн-займов и развивать клиентский путь.\n\nЯ работаю бизнес-аналитиком в продуктовой команде: собираю и формализую бизнес-требования, пишу функциональные требования, user story и use case, моделирую процессы в BPMN. Документацию веду в Confluence, задачи ставлю в Jira, провожу приёмочное тестирование доработок.\n\nБуду рад обсудить задачи команды на интервью.",
+  2: "Здравствуйте!\n\nМеня заинтересовала вакансия бизнес-аналитика в компании Кредитон: близка задача автоматизировать процессы онлайн-займов и развивать клиентский путь.\n\nЯ работаю бизнес-аналитиком в продуктовой команде: собираю и формализую бизнес-требования, пишу функциональные требования, user story и use case, моделирую процессы AS-IS / TO-BE в BPMN. Документацию веду в Confluence, задачи ставлю в Jira, провожу приёмочное тестирование.\n\nВ одном из проектов описал процесс согласования заявок и убрал из него ручные шаги операторов — этот опыт хочу применить к процессам выдачи займов. Для проверки данных пишу SQL-запросы.\n\nБуду рад обсудить задачи команды на интервью."
+};
+const TIPS = [
+  { section: "Навыки", req: "понимание SQL на базовом уровне", basis: "Для проверки данных писал SQL-запросы к тестовой базе", why: "SQL есть в опыте, но в разделе «Навыки» указан без уровня — вакансия ищет его как отдельный навык.", became: "SQL (выборки для проверки данных)", flags: [["info", "Справка", "Термин уже есть в разделе «Навыки» — совет только уточняет формулировку."]] },
+  { section: "Опыт", req: "описывать интеграции с внешними информационными системами", basis: "Описал обмен данными портала с внешней системой обучения", why: "Интеграции — ключевая обязанность в вакансии, а в резюме этот опыт описан общими словами.", became: "Описал интеграцию портала с внешней системой обучения: состав передаваемых данных, расписание обмена, обработку ошибок", flags: [["warn", "Проверьте", "Расписание обмена и обработка ошибок в резюме не найдены — добавляйте, только если это было."]] },
+  { section: "О себе", req: "опыт работы в банке, МФО или FinTech-проекте", basis: "Проект: личный кабинет клиента с онлайн-оплатой", why: "Работодатель — FinTech; близкий опыт с платежами стоит назвать явно.", became: "Работал с онлайн-платежами в клиентском кабинете", flags: [["warn", "Проверьте", "Слабое основание: оплата в кабинете — ещё не FinTech-продукт. Решите, стоит ли это упоминать."]] }
+];
+
+/* ===== Утилиты ===== */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmtDate = d => d.slice(8, 10) + "." + d.slice(5, 7);
+const fmtSalary = s => s ? `${s[0].toLocaleString("ru-RU")}–${s[1].toLocaleString("ru-RU")} BYN` : null;
+const gapByName = Object.fromEntries(GAP.map(g => [g[0], g]));
+let toastTimer;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function setPressed(group, btn) { $$("[aria-pressed]", group).forEach(b => b.setAttribute("aria-pressed", String(b === btn))); }
+function quoteFor(name, st) {
+  if (st === "ok") return `<span class="quote">«Навыки»: <q>${esc(name)}</q></span>`;
+  if (st === "exp") return `<span class="quote"><q>${esc(EXP_QUOTES[name] || "")}</q></span>`;
+  return `<span class="muted">не найдено</span>`;
+}
+
+/* ===== 1. Обзор рынка ===== */
+function renderFabric() {
+  const order = { ok: 0, exp: 1, gap: 2 };
+  const items = [...GAP].sort((a, b) => order[a[2]] - order[b[2]] || b[1] - a[1]);
+  const total = items.reduce((s, g) => s + g[1], 0);
+  const covered = items.filter(g => g[2] !== "gap").reduce((s, g) => s + g[1], 0);
+  const fab = $("#fabric");
+  fab.innerHTML = items.map(g =>
+    `<div class="seg ${g[2]}" role="listitem" tabindex="0" style="flex-grow:${g[1]}" data-n="${esc(g[0])}" data-p="${g[1]}" data-s="${g[2]}" aria-label="${esc(g[0])}: ${g[1]}% вакансий, ${STATUS_TEXT[g[2]].toLowerCase()}"></div>`).join("");
+  const share = covered / total * 100;
+  const mark = document.createElement("div");
+  mark.className = "fabric-mark"; mark.style.left = `calc(${share}% - 1px)`;
+  fab.appendChild(mark);
+  $("#fabricScale").innerHTML = `<span style="left:${share}%">${Math.round(share)}% спроса закрыто</span><span class="end">100% спроса</span>`;
+  const out = $("#fabricReadout");
+  const show = e => {
+    const s = e.target.closest(".seg"); if (!s) return;
+    out.innerHTML = `<b>${s.dataset.n}</b> — в ${s.dataset.p}% вакансий, ${STATUS_TEXT[s.dataset.s].toLowerCase()}`;
+  };
+  fab.addEventListener("mouseover", show);
+  fab.addEventListener("focusin", show);
+}
+
+function renderBars(mode) {
+  let rows;
+  if (mode === "llm") rows = GAP.filter(g => g[3]).map(g => [g[0], Math.round(g[1] * 59 / 100), g[2], 1]);
+  else rows = (mode === "top" ? SKILLS.slice(0, 20) : SKILLS).map(([n, c]) => [n, c, gapByName[n] ? gapByName[n][2] : "none", 0]);
+  const head = `<div class="row hrow"><span>Навык</span><span>Доля вакансий</span><span class="pct" style="font-weight:400">%</span><span class="cnt">Вакансий</span><span class="st">В резюме</span></div>`;
+  $("#bars").innerHTML = head + rows.map(([n, c, st, llm]) => {
+    const p = Math.round(c / 59 * 100);
+    return `<div class="row">
+      <span class="name" title="${esc(n)}">${esc(n)}${llm ? "<sup>*</sup>" : ""}</span>
+      <span class="track"><span class="bar ${st}" style="width:${p}%"></span></span>
+      <span class="pct">${p}%</span>
+      <span class="cnt">${c} из 59</span>
+      <span class="st ${st === "gap" ? "gap" : ""}"><i class="sw ${st}" aria-hidden="true"></i> <span class="txt">${STATUS_TEXT[st]}</span><span class="sr">${STATUS_TEXT[st]}</span></span>
+    </div>`;
+  }).join("");
+  $("#barsNote").textContent = mode === "llm"
+    ? "* Навыки вне словаря, найденные моделью claude-haiku-4-5 в двух и более вакансиях. Это интерпретация модели, а не точный поиск."
+    : mode === "all"
+      ? "Навыки с долей меньше 5% с резюме не сравниваются — они отмечены серым."
+      : "По 59 вакансиям Минска за 09.09–30.09.2026. Цвет полосы — статус навыка в резюме.";
+}
+
+/* ===== 2. Gap-анализ ===== */
+let gapFilter = "all";
+function renderGap() {
+  const q = $("#gapSearch").value.trim().toLowerCase();
+  const pass = g => (gapFilter === "all" || g[2] === gapFilter) && (!q || g[0].toLowerCase().includes(q));
+  const row = g => `<tr>
+    <td data-l="Навык"><b style="font-weight:500">${esc(g[0])}</b>${g[3] ? " <span class='muted'>*</span>" : ""}</td>
+    <td data-l="Частота"><span class="mini"><b>${g[1]}%</b><i style="width:${g[1] * 1.4}px"></i></span></td>
+    <td data-l="Статус"><span class="status ${g[2] === "gap" ? "gap" : ""}"><i class="sw ${g[2]}" aria-hidden="true"></i>${STATUS_TEXT[g[2]]}</span></td>
+    <td>${quoteFor(g[0], g[2])}${g[2] === "exp" ? `<br><button class="act" type="button" data-addskill="${esc(g[0])}">Добавить в «Навыки»</button>` : ""}</td>
+  </tr>`;
+  const empty = `<tr><td colspan="4" class="empty">Под этот фильтр навыков нет. Сбросьте поиск или выберите «Все».</td></tr>`;
+  const dict = GAP.filter(g => !g[3] && pass(g)), llm = GAP.filter(g => g[3] && pass(g));
+  $("#gapTable tbody").innerHTML = dict.length ? dict.map(row).join("") : empty;
+  $("#llmTable tbody").innerHTML = llm.length ? llm.map(row).join("") : empty;
+}
+
+/* ===== 3. Вакансии ===== */
+let vacFilter = "all";
+function renderVacancies() {
+  const q = $("#vacSearch").value.trim().toLowerCase();
+  const list = VACANCIES.filter(v =>
+    (vacFilter === "all" || (vacFilter === "new" && NEW_IDS.has(v.id)) || (vacFilter === "letter" && prepared[v.id]) || (vacFilter === "salary" && v.salary)) &&
+    (!q || (v.name + " " + v.employer).toLowerCase().includes(q)));
+  $("#vacTable tbody").innerHTML = list.length ? list.map(v => {
+    const p = prepared[v.id];
+    return `<tr>
+      <td><a href="#vacancy/${v.id}">${esc(v.name)}</a>${NEW_IDS.has(v.id) ? '<span class="tag-new">новая</span>' : ""}</td>
+      <td class="emp">${esc(v.employer)}</td>
+      <td class="emp">${esc(v.city)}</td>
+      <td data-l="Зарплата" style="white-space:nowrap">${fmtSalary(v.salary) || '<span class="muted">не указана</span>'}</td>
+      <td data-l="Дата">${fmtDate(v.date)}</td>
+      <td class="has" data-l="Подготовлено">${p ? `Письмо v${p.letters.length}, советы` : '<span class="no">—</span>'}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">Вакансий по этому фильтру нет. Измените поиск или соберите новые вакансии.</td></tr>`;
+}
+
+/* ===== 4. Карточка вакансии ===== */
+let card = { id: null, tab: "desc", letterV: null };
+function renderVacancy(id) {
+  const v = VACANCIES.find(x => x.id === id);
+  const el = $("#s-vacancy");
+  if (!v) { el.innerHTML = `<a class="back" href="#vacancies">Вакансии</a><p class="empty">Вакансия не найдена в выгрузках. Вернитесь к списку и выберите другую.</p>`; return; }
+  if (card.id !== id) card = { id, tab: "desc", letterV: null };
+  const rich = id === RICH_ID;
+  const p = prepared[id];
+  const okN = rich ? BASIS.filter(b => b[0] === "ok").length : 5;
+  const totalN = rich ? BASIS.length + UNCONFIRMED.length : 8;
+  const gaps = rich ? ["Кредитование", "REST API", "Скоринг и антифрод"] : ["API", "Банковский домен", "Kafka"];
+  const cells = Array.from({ length: totalN }, (_, i) => `<i class="${i < okN ? "ok" : "gap"}"></i>`).join("");
+  el.innerHTML = `
+    <a class="back" href="#vacancies">← Вакансии</a>
+    <div class="vhead">
+      <div>
+        <h1 id="h-v">${esc(v.name)}</h1>
+        <div class="meta">${esc(v.employer)}, ${esc(v.city)}. Опубликована ${fmtDate(v.date)}. ${fmtSalary(v.salary) || "Зарплата не указана"}</div>
+      </div>
+      <a class="btn" href="https://hh.ru/vacancy/${v.id}" target="_blank" rel="noopener">Открыть на hh</a>
+    </div>
+    <div class="match">
+      <div><div class="v">${okN} <small>из ${totalN}</small></div><div class="small muted">требований подтверждены резюме</div></div>
+      <div>
+        <div class="cells" aria-hidden="true">${cells}</div>
+        <div class="gaps-list"><span class="muted small">Пробелы:</span>${gaps.map(g => `<span class="chip">${esc(g)}</span>`).join("")}</div>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Материалы по вакансии">
+      <button class="tab" role="tab" data-ctab="desc" type="button">Описание</button>
+      <button class="tab" role="tab" data-ctab="letter" type="button">Письмо${p ? ` <b>v${p.letters.length}</b>` : ""}</button>
+      <button class="tab" role="tab" data-ctab="tips" type="button">Советы по резюме${p ? ` <b>${rich ? TIPS.length : 2}</b>` : ""}</button>
+    </div>
+    <div id="cardBody"></div>`;
+  $$("[data-ctab]", el).forEach(b => b.setAttribute("aria-selected", String(b.dataset.ctab === card.tab)));
+  renderCardBody(v);
+}
+
+function renderCardBody(v) {
+  const body = $("#cardBody"); const rich = v.id === RICH_ID; const p = prepared[v.id];
+  if (card.tab === "desc") {
+    body.innerHTML = rich ? `<div class="desc"><p>${DESC.intro}</p>${DESC.blocks.map(([h, li]) => `<h3>${h}</h3><ul>${li.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`).join("")}<h3>Ключевые навыки на hh</h3><p class="muted">${DESC.skills.join(", ")}</p></div>`
+      : `<p class="empty">В прототипе полное описание есть только у вакансии <a href="#vacancy/${RICH_ID}">«Бизнес-аналитик» в Кредитон</a>. В рабочей версии здесь будет текст с hh.</p>`;
+    return;
+  }
+  if (card.tab === "letter") {
+    if (!p) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Письма для этой вакансии пока нет. Модель сверит требования вакансии с резюме и напишет письмо только по подтверждённым пунктам.</p><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать письмо</button></div>`; return; }
+    const vs = p.letters; if (!card.letterV || !vs.includes(card.letterV)) card.letterV = vs[vs.length - 1];
+    const text = rich ? (LETTERS[card.letterV] || LETTERS[2]) : LETTERS[2].replace("Кредитон", v.employer).replace("онлайн-займов", "компании").replace(" к процессам выдачи займов", " в вашей команде");
+    const words = text.split(/\s+/).length;
+    body.innerHTML = `
+      <div class="versions" role="group" aria-label="Версии письма">Версия ${vs.map(n => `<button class="ver" type="button" data-ver="${n}" aria-pressed="${n === card.letterV}">v${n}</button>`).join("")}
+        <span class="demo-flag">демо-текст</span></div>
+      <div class="letter-grid">
+        <div>
+          <article class="letter"><div class="letter-text" id="letterText">${esc(text)}</div>
+            <div class="letter-foot"><span>${words} слов, claude-sonnet-5-5</span>
+              <span class="group"><button class="btn" type="button" id="copyLetter">Копировать</button><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать новую версию</button></span></div>
+          </article>
+          <h2 class="section-gap" style="margin-bottom:10px">На чём построено письмо</h2>
+          <div class="tbl-wrap"><table class="stack">
+            <thead><tr><th></th><th>Требование вакансии</th><th>Подтверждение в резюме</th></tr></thead>
+            <tbody>${BASIS.map(([s, r, q]) => `<tr><td><span class="status ${s === "gap" ? "gap" : ""}"><i class="sw ${s}" aria-hidden="true"></i><span class="sr">${s === "ok" ? "подтверждено" : "проверить"}</span>${s === "gap" ? "Проверить" : ""}</span></td><td>${esc(r)}</td><td class="quote"><q>${esc(q)}</q>${s === "gap" ? '<br><span class="small" style="color:var(--gap)">Стаж «от 3 лет» в цитате не найден — проверьте утверждение в письме.</span>' : ""}</td></tr>`).join("")}</tbody>
+          </table></div>
+        </div>
+        <div>
+          <div class="aside callout warn" style="margin:0">
+            <h3>Требования без подтверждения</h3>
+            <p class="small" style="margin-bottom:6px">В письме не упоминаются. Если опыт есть — добавьте его в резюме, если нет — подготовьтесь к вопросу на собеседовании.</p>
+            <ul>${UNCONFIRMED.map(u => `<li>${esc(u)}</li>`).join("")}</ul>
+          </div>
+          <div class="aside">
+            <h3>Перед отправкой</h3>
+            ${["Все утверждения подтверждаются резюме", "Числа совпадают с резюме", "Язык и тон подходят вакансии", "Фразы читаются естественно"].map(c => `<label class="check"><input type="checkbox"> ${c}</label>`).join("")}
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  // советы
+  if (!p) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Советов по резюме для этой вакансии пока нет. Модель предложит правки только там, где в резюме есть основание.</p><button class="btn primary" type="button" data-run="cv-tips">Получить советы</button></div>`; return; }
+  const tips = rich ? TIPS : TIPS.slice(1, 3);
+  body.innerHTML = `
+    <div class="versions">Версия <button class="ver" type="button" aria-pressed="true">v${p.tips.length}</button><span class="demo-flag">демо-текст</span>
+      <span style="flex:1"></span><button class="btn" type="button" data-run="cv-tips">Получить новые советы</button></div>
+    <div class="tips">${tips.map((t, i) => `
+      <article class="tip">
+        <h3><span class="n">${i + 1}</span>Раздел «${t.section}»</h3>
+        <dl><dt>Требование вакансии</dt><dd><q>${esc(t.req)}</q></dd>
+            <dt>Основание в резюме</dt><dd class="quote"><q>${esc(t.basis)}</q></dd>
+            <dt>Почему</dt><dd>${esc(t.why)}</dd></dl>
+        <div class="became"><div><div class="small muted">Стало</div><span>${esc(t.became)}</span></div><button class="btn ghost" type="button" data-copy="${esc(t.became)}">Копировать</button></div>
+        ${t.flags.map(([k, l, txt]) => `<div class="flag ${k}"><b>${l}</b><span>${esc(txt)}</span></div>`).join("")}
+      </article>`).join("")}</div>`;
+}
+
+/* ===== Запуск команд (имитация) ===== */
+const COMMANDS = {
+  "analyze": { title: "Обновление анализа рынка", steps: ["Чтение выгрузок: 8 файлов", "Фильтр по городу и периоду: 59 вакансий", "Поиск навыков по словарю: 59/59", "LLM claude-haiku-4-5: навыки вне словаря, 59/59", "Сравнение с резюме: 89 навыков", "Отчёт сохранён: reports/market_skills_summary.md"],
+    done: "Анализ обновлён: 59 вакансий, покрытие резюме 60%.",
+    error: ["LLM не ответила за 60 с по 3 вакансиям.", "Остальные 56 обработаны. Запустите анализ ещё раз — готовые ответы возьмутся из кэша."] },
+  "fetch": { title: "Сбор вакансий с hh.ru", steps: ["Запрос к hh.ru: роли и регионы из параметров", "Найдено 22 вакансии, новых 7", "Загрузка описаний: 1/7", "Загрузка описаний: 3/7", "Загрузка описаний: 5/7", "Загрузка описаний: 7/7", "Сохранено: data/raw_vacancies_20261001_101500.json"],
+    done: "Собрано 22 вакансии, 7 новых. Обновите анализ, чтобы учесть их в рейтинге.",
+    error: ["hh.ru не отвечает: превышено время ожидания 30 с.", "Проверьте, что hh.ru в исключениях VPN, и запустите сбор ещё раз."] },
+  "cover-letter": { title: "Сопроводительное письмо", steps: ["Чтение вакансии и резюме", "Генерация письма: claude-sonnet-5-5", "Проверка утверждений по резюме: 10 требований", "Сохранено: reports/cover_letters/cl_{id}_v{n}.md"],
+    done: "Письмо готово: версия v{n}.",
+    error: ["Письмо не прошло проверку: 2 утверждения без цитаты из резюме.", "Письмо не сохранено. Сгенерируйте его ещё раз."] },
+  "cv-tips": { title: "Советы по резюме", steps: ["Чтение вакансии и резюме", "Поиск требований без формулировки в резюме", "Генерация советов: claude-sonnet-5-5", "Проверка оснований по резюме", "Сохранено: reports/cv_tips/cv_tips_{id}.md"],
+    done: "Советы готовы.",
+    error: ["Модель вернула ответ не по схеме.", "Советы не сохранены. Запустите команду ещё раз."] }
+};
+const con = $("#console");
+let run = null;
+function setRunButtons(disabled) { $$("[data-run]").forEach(b => b.disabled = disabled); }
+function startCommand(cmd) {
+  if (run) return;
+  const def = COMMANDS[cmd]; const fail = $("#failMode").checked;
+  const id = card.id || ""; const p = prepared[id];
+  const n = cmd === "cover-letter" ? (p ? p.letters.length + 1 : 1) : 1;
+  const sub = s => s.replace("{id}", id).replace("{n}", n);
+  const steps = def.steps.map(sub);
+  const failAt = Math.ceil(steps.length * 0.6);
+  run = { cmd, i: 0, cancelled: false };
+  con.dataset.state = "running"; con.classList.add("open");
+  $("#conCmd").textContent = cmd; $("#conTitle").textContent = def.title;
+  $("#conState").textContent = "Выполняется"; $("#conMsg").textContent = "";
+  const panel = cmd === "fetch" ? $("#fetchPanel") : cmd === "analyze" ? $("#analyzePanel") : null;
+  const line = panel ? updatePreview(panel) : `python -m src.cli ${cmd} ${id}`;
+  if (panel && !panel.hidden) togglePanel(panel, false);
+  $("#conLog").innerHTML = `<span class="muted">$ ${esc(line)}</span>\n`; $("#conBar").style.width = "0"; $("#conPct").textContent = "0%";
+  $("#conAction").textContent = "Отменить"; setRunButtons(true);
+  const t0 = Date.now();
+  const tick = () => {
+    if (!run || run.cancelled) return;
+    const i = run.i;
+    if (fail && i === failAt) {
+      $("#conLog").innerHTML += `<span class="err">Ошибка: ${esc(def.error[0])}</span>\n`;
+      con.dataset.state = "error"; $("#conState").textContent = "Ошибка";
+      $("#conMsg").innerHTML = `<b>${esc(def.error[0])}</b> ${esc(def.error[1])}`;
+      $("#conAction").textContent = "Повторить"; run = null; setRunButtons(false); return;
+    }
+    if (i >= steps.length) {
+      const sec = Math.max(1, Math.round((Date.now() - t0) / 1000));
+      con.dataset.state = "done"; $("#conState").textContent = `Готово за ${sec} с`;
+      $("#conLog").innerHTML += `<span class="ok">${esc(sub(def.done))}</span>\n`;
+      $("#conMsg").textContent = sub(def.done);
+      $("#conAction").textContent = "Закрыть"; run = null; setRunButtons(false);
+      onCommandDone(cmd, id); return;
+    }
+    $("#conLog").innerHTML += `${new Date().toLocaleTimeString("ru-RU")}  ${esc(steps[i])}\n`;
+    $("#conLog").scrollTop = 1e6;
+    const pct = Math.round((i + 1) / steps.length * 100);
+    $("#conBar").style.width = pct + "%"; $("#conPct").textContent = pct + "%";
+    run.i++; run.timer = setTimeout(tick, 550 + Math.random() * 450);
+  };
+  run.cmd = cmd; run.timer = setTimeout(tick, 250);
+  con.dataset.lastCmd = cmd;
+}
+function onCommandDone(cmd, id) {
+  if (cmd === "cover-letter" && id) {
+    prepared[id] = prepared[id] || { letters: [], tips: [] };
+    prepared[id].letters.push(prepared[id].letters.length + 1);
+    card.letterV = prepared[id].letters.length; card.tab = "letter";
+    if (location.hash.startsWith("#vacancy/")) renderVacancy(id);
+    renderVacancies();
+  }
+  if (cmd === "cv-tips" && id) {
+    prepared[id] = prepared[id] || { letters: [], tips: [] };
+    prepared[id].tips.push(prepared[id].tips.length + 1);
+    card.tab = "tips";
+    if (location.hash.startsWith("#vacancy/")) renderVacancy(id);
+  }
+}
+$("#conAction").addEventListener("click", () => {
+  const st = con.dataset.state;
+  if (st === "running" && run) {
+    clearTimeout(run.timer); run.cancelled = true; run = null; setRunButtons(false);
+    con.dataset.state = "error"; $("#conState").textContent = "Отменено";
+    $("#conMsg").textContent = "Команда остановлена. Уже сохранённые результаты не изменились.";
+    $("#conAction").textContent = "Закрыть";
+  } else if (st === "error" && $("#conAction").textContent === "Повторить") {
+    startCommand(con.dataset.lastCmd);
+  } else {
+    con.classList.remove("open"); con.dataset.state = "idle";
+  }
+});
+$("#conLogBtn").addEventListener("click", e => {
+  const log = $("#conLog"); log.hidden = !log.hidden;
+  e.target.textContent = log.hidden ? "Показать лог" : "Скрыть лог";
+  e.target.setAttribute("aria-expanded", String(!log.hidden));
+});
+
+/* ===== Профиль: profile/preferences.json ===== */
+const PROFILE = {
+  roles: ["Бизнес-аналитик", "Системный аналитик", "Business Analyst", "Systems Analyst", "System Analyst", "IT-аналитик", "IT Analyst", "Аналитик требований", "Requirements Analyst", "Функциональный аналитик", "Functional Analyst"],
+  excludeWords: ["1С"],
+  excludedSkills: ["1С", "1C", "SAP"],
+  focusAreas: ["Интеграции и API", "Проектирование баз данных", "Сбор и документирование требований"],
+  llm: { vacancy_analysis: { provider: "anthropic", model: "claude-haiku-4-5" }, cv_processing: { provider: "anthropic", model: "claude-haiku-4-5" } },
+  dict: [["Бизнес-анализ",["Business Analysis"]],["Системный анализ",["системн анализ","System Analysis"]],["Анализ требований",["анализ требовани"]],["Разработка бизнес-требований",["бизнес-требовани"]],["Моделирование бизнес-процессов",["моделировани бизнес-процесс"]],["Описание бизнес-процессов",["описани бизнес-процесс"]],["Оптимизация бизнес-процессов",["оптимизаци бизнес-процесс"]],["Автоматизация бизнес-процессов",["автоматизаци бизнес-процесс"]],["Постановка задач разработчикам",["постановк задач"]],["Разработка пользовательской документации",["пользовательск документаци"]],["Управление проектами",["управлени проект","руководител проект","Project Management"]],["Аналитическое мышление",["аналитическ мышлени","Analytical Thinking"]],["Управление ожиданиями",["управлени ожидани"]],["Деловая коммуникация",["делов коммуникаци"]],["Сбор требований",["сбор требовани"]],["Нефункциональные требования",["нефункциональн требовани","NFR"]],["Acceptance Criteria",["критери приёмки","критери приемки"]],["ГОСТ 34",[]],["Банковский домен",["банковск","FinTech","финтех"]],["Микросервисы",["микросервис","Microservices","Microservice"]],["BPMN",[]],["UML",[]],["Use Case",["Use Cases","юзкейс","юз-кейс"]],["User Story",["User Stories","юзер стори"]],["ER-диаграмма",["ERD","ER-диаграмм","ER-модел"]],["DFD",[]],["ArchiMate",[]],["C4",[]],["Sequence Diagram",["Sequence","диаграмм последовательност"]],["Activity Diagram",["диаграмм активност","диаграмм деятельност"]],["Agile",["Аджайл"]],["Scrum",["Скрам"]],["Kanban",["Канбан"]],["Waterfall",["Водопад"]],["Jira",["Джир"]],["Confluence",["Конфлюенс"]],["Figma",["Фигм"]],["Axure",[]],["Bizagi",[]],["PowerDesigner",["Power Designer"]],["Draw.io",["drawio","diagrams.net"]],["Visio",[]],["Miro",[]],["Enterprise Architect",["Sparx EA"]],["Postman",[]],["SoapUI",["Soap UI"]],["Swagger",[]],["Git",["GitLab","GitHub"]],["Excel",["Эксел"]],["Power BI",["PowerBI"]],["Tableau",[]],["MS Office",["Microsoft Office","Word","MS Word","PowerPoint"]],["DBeaver",[]],["API",["web-сервис","веб-сервис","Web Services","Web Service"]],["Интеграции",["интеграци","Integration"]],["HTTP",["HTTPS"]],["REST API",["REST","RESTful"]],["SOAP",[]],["OpenAPI",["Open API"]],["gRPC",[]],["Kafka",["Кафк"]],["RabbitMQ",["Rabbit MQ"]],["JSON",[]],["XML",["XSD"]],["OAuth",["OAuth2"]],["JWT",[]],["ETL",[]],["ESB",["шин данных"]],["SQL",[]],["Реляционные БД",["реляционн","СУБД","RDBMS"]],["PostgreSQL",["Postgres"]],["Oracle",[]],["MS SQL",["MSSQL","SQL Server"]],["MySQL",[]],["Docker",[]],["Kubernetes",["K8s"]],["CI/CD",[]],["Redis",[]],["Linux",[]],["UAT",["приёмочн тестирован","приемочн тестирован","ПСИ","приёмо-сдаточн испытани","приемо-сдаточн испытани","ПМИ","программ и методик испытани"]],["Декомпозиция требований",["декомпозици"]],["Тест-кейсы",["тест-кейс","test case","test cases"]],["ТЗ",["техническ задани"]],["ФТ",["функциональн требовани"]],["BRD",[]],["SRS",[]],["CRM",["amoCRM","Salesforce","Dynamics CRM","Битрикс24 CRM","Bitrix24 CRM"]],["ERP",[]]]
+};
+// Кандидаты на пополнение словаря: reports/market_skills_summary.md. [навык, источник, вакансий, предложенный навык словаря]
+const CANDIDATES = [
+  ["Анализ бизнес-процессов", "hh", 4, "Описание бизнес-процессов"], ["ГОСТ 19", "llm", 4, ""], ["Кредитование", "llm", 4, "Банковский домен"],
+  ["Camunda", "llm", 3, "BPMN"], ["MongoDB", "llm", 3, ""], ["Requirements analysis", "llm", 3, "Анализ требований"],
+  ["Бизнес-процессы", "llm", 3, "Описание бизнес-процессов"], ["Стратегическое планирование", "hh", 2, ""], ["ClickHouse", "llm", 2, ""],
+  ["PlantUML", "llm", 2, "UML"], ["Message queues", "llm", 2, "Kafka"], ["Проектирование БД", "llm", 2, "Реляционные БД"],
+  ["Техническая документация", "llm", 2, ""], ["Banking domain", "llm", 2, "Банковский домен"], ["Прототипирование", "hh", 1, ""], ["Databases", "hh", 1, "Реляционные БД"]
+];
+// Какие переменные .env заданы (только имена, без значений)
+const ENV_SET = new Set(["ANTHROPIC_API_KEY", "HH_USER_AGENT", "HH_CLIENT_ID", "HH_CLIENT_SECRET", "HH_APP_TOKEN", "HH_CURL_PATH"]);
+const PROVIDERS = {
+  anthropic: { label: "Anthropic", key: "ANTHROPIC_API_KEY", url: "", batch: 10 },
+  deepseek: { label: "DeepSeek", key: "DEEPSEEK_API_KEY", url: "https://api.deepseek.com", batch: 10 },
+  qwen: { label: "Qwen (Alibaba DashScope)", key: "DASHSCOPE_API_KEY", url: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", batch: 10 },
+  ollama: { label: "Ollama (локально)", key: null, url: "http://localhost:11434/v1", batch: 1 }
+};
+const CONNECTIONS = [
+  ["Anthropic API", ["ANTHROPIC_API_KEY"], "Нужен для провайдера anthropic", "llm"],
+  ["DeepSeek API", ["DEEPSEEK_API_KEY"], "Нужен, только если выбран провайдер deepseek", "llm"],
+  ["Qwen (DashScope)", ["DASHSCOPE_API_KEY"], "Нужен, только если выбран провайдер qwen", "llm"],
+  ["hh.ru: User-Agent", ["HH_USER_AGENT"], "Имя приложения и почта в заголовке запросов", null],
+  ["hh.ru: приложение", ["HH_CLIENT_ID", "HH_CLIENT_SECRET"], "Выдаются на dev.hh.ru после одобрения заявки", null],
+  ["hh.ru: токен приложения", ["HH_APP_TOKEN"], "Бессрочный, получается по Client ID и Secret", "hh"],
+  ["curl для запросов к hh", ["HH_CURL_PATH"], "Нужен, если curl исключён из VPN. Пусто — curl из PATH", null]
+];
+
+let S = {};
+function snapshot() { S = JSON.parse(JSON.stringify(PROFILE)); S.dict = S.dict.map(([n, a]) => ({ name: n, aliases: a })); S.cands = CANDIDATES.map(c => c.slice()); }
+let dirty = false, lastAdded = null;
+function markDirty() {
+  dirty = true;
+  $("#saveBar").classList.add("dirty"); $("#dirtyText").textContent = "Есть несохранённые изменения";
+  $("#saveSettings").disabled = false; $("#resetSettings").disabled = false;
+}
+function clearDirty(msg) {
+  dirty = false;
+  $("#saveBar").classList.remove("dirty"); $("#dirtyText").textContent = msg || "Изменений нет";
+  $("#saveSettings").disabled = true; $("#resetSettings").disabled = true;
+}
+
+/* редактируемый список «чипов» */
+function chipEditor(el, arr, label, onChange) {
+  el.innerHTML = arr.map((v, i) => `<span class="tchip">${esc(v)}<button type="button" data-i="${i}" aria-label="Удалить ${label} «${esc(v)}»">×</button></span>`).join("")
+    + `<input class="chip-add" type="text" placeholder="+ ${label}" aria-label="Добавить ${label}">`;
+  el.onclick = e => {
+    const b = e.target.closest("button[data-i]"); if (!b) return;
+    arr.splice(+b.dataset.i, 1); onChange(); chipEditor(el, arr, label, onChange); markDirty();
+    const inp = el.querySelector(".chip-add"); if (inp) inp.focus();
+  };
+  el.querySelector(".chip-add").onkeydown = e => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    const v = e.target.value.trim(); if (!v) return;
+    if (arr.some(x => x.toLowerCase() === v.toLowerCase())) { toast(`«${v}» уже есть в списке`); return; }
+    arr.push(v); onChange(); chipEditor(el, arr, label, onChange); markDirty();
+    el.querySelector(".chip-add").focus();
+  };
+}
+function renderChipLists() {
+  $$(".chips-edit[data-list]").forEach(el => chipEditor(el, S[el.dataset.list], el.dataset.label, () => { if (el.dataset.list === "roles") renderFetchRoles(); }));
+}
+
+/* словарь */
+const ORIG_SKILLS = new Set(PROFILE.dict.map(d => d[0]));
+const freqOf = name => { const s = SKILLS.find(x => x[0] === name); return s ? s[1] : 0; };
+function renderDict() {
+  const q = $("#dictSearch").value.trim().toLowerCase();
+  const rows = S.dict.filter(d => !q || d.name.toLowerCase().includes(q) || d.aliases.some(a => a.toLowerCase().includes(q)));
+  $("#dictCount").textContent = S.dict.length;
+  $("#dictTable tbody").innerHTML = rows.length ? rows.map(d => {
+    const c = freqOf(d.name);
+    return `<tr data-skill="${esc(d.name)}"${d.name === lastAdded ? ' class="added"' : ""}>
+      <td>${esc(d.name)}</td>
+      <td data-l="Синонимы"><div class="chips-edit" data-syn="${esc(d.name)}"></div></td>
+      <td class="num" data-l="В вакансиях">${c ? `${c} <span class="muted">(${Math.round(c / 59 * 100)}%)</span>` : ORIG_SKILLS.has(d.name) ? '<span class="muted">0</span>' : '<span class="muted">после анализа</span>'}</td>
+      <td><button class="row-del" type="button" data-del="${esc(d.name)}">Удалить</button></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="4" class="empty">Ничего не найдено. Чтобы добавить «${esc($("#dictSearch").value.trim())}» в словарь, введите его в поле «Новый навык».</td></tr>`;
+  $$("[data-syn]").forEach(el => { const d = S.dict.find(x => x.name === el.dataset.syn); chipEditor(el, d.aliases, "синоним", () => {}); });
+}
+function addSkill(name, quiet) {
+  const err = $("#newSkillErr"); err.textContent = "";
+  name = name.trim();
+  if (!name) { err.textContent = "Введите название навыка."; return false; }
+  if (S.dict.some(d => d.name.toLowerCase() === name.toLowerCase())) { err.textContent = `«${name}» уже есть в словаре.`; return false; }
+  S.dict.unshift({ name, aliases: [] }); lastAdded = name; $("#dictSearch").value = "";
+  renderDict(); renderCandSelects(); markDirty();
+  if (!quiet) toast(`«${name}» добавлен в словарь`);
+  return true;
+}
+function renderCands() {
+  $("#candTable tbody").innerHTML = S.cands.length ? S.cands.map(([n, src, c, sug], i) => `<tr>
+      <td>${esc(n)}</td>
+      <td class="src" data-l="Источник">${src === "hh" ? "key_skills hh" : "LLM"}</td>
+      <td class="num" data-l="Вакансий">${c}</td>
+      <td><label class="sr" for="cand${i}">Куда добавить «${esc(n)}»</label><select id="cand${i}" data-cand="${i}" data-sug="${esc(sug)}"></select></td>
+      <td class="group"><button class="btn" type="button" data-cadd="${i}">Добавить</button><button class="btn ghost" type="button" data-cexcl="${i}">Исключить</button></td>
+    </tr>`).join("") : `<tr><td colspan="5" class="empty">Все кандидаты разобраны. Новые появятся после следующего анализа.</td></tr>`;
+  renderCandSelects();
+}
+function renderCandSelects() {
+  const opts = S.dict.map(d => d.name).sort((a, b) => a.localeCompare(b, "ru"));
+  $$("select[data-cand]").forEach(sel => {
+    const keep = sel.value || sel.dataset.sug;
+    sel.innerHTML = `<option value="">Новым навыком</option><optgroup label="Синонимом к навыку">${opts.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join("")}</optgroup>`;
+    sel.value = opts.includes(keep) ? keep : "";
+  });
+}
+
+/* модели */
+function renderTask(sec) {
+  const t = S.llm[sec.dataset.task], p = PROVIDERS[t.provider];
+  const sel = $("[data-provider]", sec);
+  if (!sel.options.length) sel.innerHTML = Object.entries(PROVIDERS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("");
+  sel.value = t.provider;
+  const m = $("[data-model]", sec); m.value = t.model; m.setAttribute("list", "m-" + t.provider);
+  $("[data-baseurl]", sec).placeholder = p.url || "по умолчанию SDK Anthropic";
+  $("[data-batch]", sec).placeholder = p.batch;
+  const st = $("[data-keystatus]", sec);
+  if (!p.key) { st.className = "key-status ok"; st.innerHTML = `<b>Ключ не нужен.</b> Нужен запущенный Ollama на localhost:11434; вакансии отправляются по одной.`; }
+  else if (ENV_SET.has(p.key)) { st.className = "key-status ok"; st.innerHTML = `<b>Ключ задан</b> <code>${p.key}</code>`; }
+  else { st.className = "key-status warn"; st.innerHTML = `<b>Ключ не задан.</b> Добавьте <code>${p.key}</code> в .env — без него команды с этой моделью завершатся ошибкой.`; }
+}
+function renderTasks() { $$(".task").forEach(renderTask); }
+
+/* подключения */
+function renderConn() {
+  $("#connTable tbody").innerHTML = CONNECTIONS.map(([name, vars, note, chk], i) => {
+    const set = vars.every(v => ENV_SET.has(v));
+    return `<tr>
+      <td><b style="font-weight:500">${name}</b><br><span class="small muted">${note}</span></td>
+      <td data-l="Переменная">${vars.map(v => `<code>${v}</code>`).join(" ")}</td>
+      <td data-l="Статус"><span class="conn-st ${set ? "ok" : "no"}"><i class="dot ${set ? "ok" : "no"}"></i>${set ? (vars.length > 1 ? "Заданы" : "Задан") : "Не задан"}</span><span class="check-res" id="cres${i}" aria-live="polite"></span></td>
+      <td>${chk && set ? `<button class="btn" type="button" data-check="${i}">Проверить</button>` : ""}</td>
+    </tr>`;
+  }).join("");
+}
+function checkConn(i, btn) {
+  const out = $("#cres" + i), hh = CONNECTIONS[i][3] === "hh";
+  btn.disabled = true; out.className = "check-res"; out.textContent = "Проверяем…";
+  setTimeout(() => {
+    btn.disabled = false;
+    if ($("#failMode").checked) {
+      out.className = "check-res err";
+      out.textContent = hh ? "hh.ru не отвечает за 30 с. Проверьте исключение hh.ru в VPN." : "Ключ отклонён (401). Проверьте значение в .env.";
+    } else { out.className = "check-res ok"; out.textContent = hh ? "Соединение есть, токен принят" : "Соединение есть, ключ принят"; }
+  }, 900);
+}
+
+/* панели запуска: превью команды */
+function renderFetchRoles() {
+  $("#fetchRoles").innerHTML = S.roles.map(r => `<label class="check"><input type="checkbox" data-arg='--role "${esc(r)}"' data-default="1" checked> ${esc(r)}</label>`).join("");
+  updatePreview($("#fetchPanel"));
+}
+function cmdArgs(form) {
+  const args = [];
+  $$("fieldset[data-group]", form).forEach(fs => {
+    const ins = $$("input", fs);
+    if (ins.some(i => i.checked !== (i.dataset.default === "1"))) ins.filter(i => i.checked && i.dataset.arg).forEach(i => args.push(i.dataset.arg));
+  });
+  $$("input[data-arg]", form).filter(i => !i.closest("fieldset[data-group]") && i.checked && !i.disabled).forEach(i => args.push(i.dataset.arg));
+  $$("input[data-argname]", form).filter(i => i.value).forEach(i => args.push(`${i.dataset.argname} ${i.value}`));
+  return args;
+}
+function updatePreview(form) {
+  const line = ["python -m src.cli", form.dataset.cmd, ...cmdArgs(form)].join(" ");
+  $("[data-preview]", form).textContent = line;
+  return line;
+}
+function togglePanel(form, open) {
+  const btn = $(`[aria-controls="${form.id}"]`);
+  form.hidden = open === undefined ? !form.hidden : !open;
+  if (btn) btn.setAttribute("aria-expanded", String(!form.hidden));
+  if (!form.hidden) { updatePreview(form); form.querySelector("input").focus(); }
+}
+
+function initSettings() {
+  snapshot();
+  renderChipLists(); renderDict(); renderCands(); renderTasks(); renderConn(); renderFetchRoles();
+  updatePreview($("#analyzePanel"));
+  clearDirty();
+}
+
+/* ===== Навигация ===== */
+const SCREENS = ["overview", "gap", "vacancies", "vacancy", "settings"];
+function route() {
+  const h = location.hash.slice(1) || "overview";
+  const [name, arg] = h.split("/");
+  const scr = SCREENS.includes(name) ? name : "overview";
+  SCREENS.forEach(s => $("#s-" + s).hidden = s !== scr);
+  $$("[data-nav]").forEach(a => a.toggleAttribute("aria-current", false));
+  const navKey = scr === "vacancy" ? "vacancies" : scr;
+  const cur = $(`[data-nav="${navKey}"]`); if (cur) cur.setAttribute("aria-current", "page");
+  if (scr === "vacancy") renderVacancy(arg);
+  else card.id = null;
+  window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+
+/* ===== События ===== */
+document.addEventListener("click", e => {
+  const t = e.target.closest("button, a"); if (!t) return;
+  if (t.dataset.run) { e.preventDefault(); startCommand(t.dataset.run); return; }
+  if (t.dataset.unavail) { toast(t.dataset.unavail); return; }
+  if (t.dataset.pick) {
+    const f = $("#analyzePanel"); togglePanel(f, true); $(t.dataset.pick, f).checked = true; updatePreview(f);
+    toast("Отчёт строится заново — проверьте параметры и запустите анализ"); return;
+  }
+  if (t.dataset.rank) { $$("[data-rank]").forEach(b => b.setAttribute("aria-selected", String(b === t))); renderBars(t.dataset.rank); return; }
+  if (t.dataset.ctab) { card.tab = t.dataset.ctab; renderVacancy(card.id); $(`[data-ctab="${card.tab}"]`).focus(); return; }
+  if (t.dataset.ver) { card.letterV = +t.dataset.ver; renderVacancy(card.id); return; }
+  if (t.dataset.addskill) { toast(`«${t.dataset.addskill}» отмечен для раздела «Навыки». Перенесите в резюме вручную.`); return; }
+  if (t.dataset.copy) { copy(t.dataset.copy); return; }
+  if (t.id === "copyLetter") { copy($("#letterText").textContent); return; }
+  if (t.closest("#gapFilter") && t.dataset.f) { gapFilter = t.dataset.f; setPressed($("#gapFilter"), t); renderGap(); return; }
+  if (t.closest("#vacFilter") && t.dataset.f) { vacFilter = t.dataset.f; setPressed($("#vacFilter"), t); renderVacancies(); return; }
+  if (t.closest(".seg-ctl")) { setPressed(t.parentElement, t); if (t.closest("#settingsForm")) markDirty(); return; }
+});
+function copy(text) {
+  const ok = () => toast("Скопировано в буфер обмена");
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(ok, () => toast("Не удалось скопировать: браузер запретил доступ к буферу"));
+  else { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); ok(); } catch (_) { toast("Не удалось скопировать: выделите текст вручную"); } ta.remove(); }
+}
+$("#gapSearch").addEventListener("input", renderGap);
+$("#vacSearch").addEventListener("input", renderVacancies);
+$$("form.panel").forEach(f => {
+  f.addEventListener("submit", e => e.preventDefault());
+  f.addEventListener("change", () => updatePreview(f));
+  f.addEventListener("input", () => updatePreview(f));
+});
+$("#fetchToggle").addEventListener("click", () => togglePanel($("#fetchPanel")));
+$("#analyzeToggle").addEventListener("click", () => togglePanel($("#analyzePanel")));
+$$("[data-close-panel]").forEach(b => b.addEventListener("click", () => { const f = b.closest("form"); togglePanel(f, false); $(`[aria-controls="${f.id}"]`).focus(); }));
+$("#noLlm").addEventListener("change", e => { const r = $("#llmRefresh"); r.disabled = e.target.checked; if (e.target.checked) r.checked = false; updatePreview($("#analyzePanel")); });
+$$("[data-open-analyze]").forEach(b => b.addEventListener("click", () => { location.hash = "#overview"; setTimeout(() => togglePanel($("#analyzePanel"), true), 0); }));
+
+/* настройки */
+const sform = $("#settingsForm");
+const notSetting = t => t.matches(".chip-add, #dictSearch, #newSkill, select[data-cand]");
+sform.addEventListener("input", e => { if (e.target.matches("[data-model]")) S.llm[e.target.closest(".task").dataset.task].model = e.target.value; if (!notSetting(e.target)) markDirty(); });
+sform.addEventListener("change", e => {
+  const t = e.target;
+  if (t.matches("[data-provider]")) {
+    const sec = t.closest(".task"), task = S.llm[sec.dataset.task];
+    task.provider = t.value; task.model = $(`#m-${t.value} option`).value; renderTask(sec);
+  }
+  if (!notSetting(t)) markDirty();
+});
+sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
+$("#resetSettings").addEventListener("click", () => {
+  sform.reset(); lastAdded = null; $("#dictSearch").value = ""; $("#newSkillErr").textContent = "";
+  $$(".seg-ctl", sform).forEach(g => setPressed(g, g.querySelector("button")));
+  initSettings(); toast("Изменения отменены");
+});
+$("#dictSearch").addEventListener("input", renderDict);
+$("#newSkill").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); if (addSkill(e.target.value)) e.target.value = ""; } });
+$("#addSkill").addEventListener("click", () => { const i = $("#newSkill"); if (addSkill(i.value)) i.value = ""; });
+$("#s-settings").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.stab) {
+    $$("[data-stab]").forEach(b => b.setAttribute("aria-selected", String(b === t)));
+    $$(".stab").forEach(p => p.hidden = p.dataset.pane !== t.dataset.stab);
+    $("#saveBar").toggleAttribute("data-hide", t.dataset.stab === "conn");
+    return;
+  }
+  if (t.dataset.del) {
+    S.dict = S.dict.filter(d => d.name !== t.dataset.del); renderDict(); renderCandSelects(); markDirty();
+    toast(`«${t.dataset.del}» удалён из словаря`); return;
+  }
+  if (t.dataset.cadd) {
+    const i = +t.dataset.cadd, [name] = S.cands[i], target = $(`select[data-cand="${i}"]`).value;
+    if (target) {
+      const d = S.dict.find(x => x.name === target);
+      if (!d.aliases.some(a => a.toLowerCase() === name.toLowerCase())) d.aliases.push(name);
+      lastAdded = target; toast(`«${name}» — синоним к «${target}»`);
+    } else if (!addSkill(name, true)) { toast(`«${name}» уже есть в словаре`); return; }
+    else toast(`«${name}» добавлен в словарь`);
+    S.cands.splice(i, 1); renderCands(); renderDict(); markDirty(); return;
+  }
+  if (t.dataset.cexcl) {
+    const i = +t.dataset.cexcl, [name] = S.cands[i];
+    S.excludedSkills.push(name); S.cands.splice(i, 1);
+    renderCands(); chipEditor($('[data-list="excludedSkills"]'), S.excludedSkills, "навык", () => {}); markDirty();
+    toast(`«${name}» больше не попадёт в отчёт`); return;
+  }
+  if (t.dataset.check) { checkConn(+t.dataset.check, t); return; }
+});
+/* тема */
+const THEMES = [["system", "системная"], ["light", "светлая"], ["dark", "тёмная"]];
+let themeIdx = 0;
+try { const s = localStorage.getItem("jma-theme"); const i = THEMES.findIndex(t => t[0] === s); if (i > 0) themeIdx = i; } catch (_) {}
+function applyTheme() {
+  const [k, l] = THEMES[themeIdx];
+  if (k === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = k;
+  $("#themeBtn").textContent = "Тема: " + l;
+  try { localStorage.setItem("jma-theme", k); } catch (_) {}
+}
+$("#themeBtn").addEventListener("click", () => { themeIdx = (themeIdx + 1) % THEMES.length; applyTheme(); });
+
+applyTheme();
+initSettings();
+renderFabric();
+renderBars("top");
+renderGap();
+renderVacancies();
+route();
+</script>
+</body>
+</html>
