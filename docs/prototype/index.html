@@ -306,6 +306,8 @@ legend { font-size: 13px; color: var(--muted); padding: 0; margin-bottom: 6px; }
 .flag b { font-weight: 600; white-space: nowrap; }
 .flag.warn b { color: var(--gap); }
 .flag.info b { color: var(--muted); }
+.flag.warn { color: var(--ink); }
+.flag-inline { color: var(--gap); font-size: 13px; }
 
 /* ---------- settings ---------- */
 .form { display: grid; gap: 28px; max-width: 640px; }
@@ -992,11 +994,21 @@ const LETTERS = {
   1: "Здравствуйте!\n\nМеня заинтересовала вакансия бизнес-аналитика в компании Кредитон: близка задача автоматизировать процессы онлайн-займов и развивать клиентский путь.\n\nЯ работаю бизнес-аналитиком в продуктовой команде: собираю и формализую бизнес-требования, пишу функциональные требования, user story и use case, моделирую процессы в BPMN. Документацию веду в Confluence, задачи ставлю в Jira, провожу приёмочное тестирование доработок.\n\nБуду рад обсудить задачи команды на интервью.",
   2: "Здравствуйте!\n\nМеня заинтересовала вакансия бизнес-аналитика в компании Кредитон: близка задача автоматизировать процессы онлайн-займов и развивать клиентский путь.\n\nЯ работаю бизнес-аналитиком в продуктовой команде: собираю и формализую бизнес-требования, пишу функциональные требования, user story и use case, моделирую процессы AS-IS / TO-BE в BPMN. Документацию веду в Confluence, задачи ставлю в Jira, провожу приёмочное тестирование.\n\nВ одном из проектов описал процесс согласования заявок и убрал из него ручные шаги операторов — этот опыт хочу применить к процессам выдачи займов. Для проверки данных пишу SQL-запросы.\n\nБуду рад обсудить задачи команды на интервью."
 };
+// Отметки — как в файле cv-tips (AC 5.4): ℹ️ термин уже есть в разделе, ⚠️ число / цитата не найдены в резюме
 const TIPS = [
-  { section: "Навыки", req: "понимание SQL на базовом уровне", basis: "Для проверки данных писал SQL-запросы к тестовой базе", why: "SQL есть в опыте, но в разделе «Навыки» указан без уровня — вакансия ищет его как отдельный навык.", became: "SQL (выборки для проверки данных)", flags: [["info", "Справка", "Термин уже есть в разделе «Навыки» — совет только уточняет формулировку."]] },
-  { section: "Опыт", req: "описывать интеграции с внешними информационными системами", basis: "Описал обмен данными портала с внешней системой обучения", why: "Интеграции — ключевая обязанность в вакансии, а в резюме этот опыт описан общими словами.", became: "Описал интеграцию портала с внешней системой обучения: состав передаваемых данных, расписание обмена, обработку ошибок", flags: [["warn", "Проверьте", "Расписание обмена и обработка ошибок в резюме не найдены — добавляйте, только если это было."]] },
-  { section: "О себе", req: "опыт работы в банке, МФО или FinTech-проекте", basis: "Проект: личный кабинет клиента с онлайн-оплатой", why: "Работодатель — FinTech; близкий опыт с платежами стоит назвать явно.", became: "Работал с онлайн-платежами в клиентском кабинете", flags: [["warn", "Проверьте", "Слабое основание: оплата в кабинете — ещё не FinTech-продукт. Решите, стоит ли это упоминать."]] }
+  { section: "Навыки", req: "понимание SQL на базовом уровне", basis: "Для проверки данных писал SQL-запросы к тестовой базе", why: "SQL есть в опыте, но в разделе «Навыки» указан без уровня — вакансия ищет его как отдельный навык.", became: "SQL (выборки для проверки данных)", flags: [["info", "ℹ️ Термин уже есть в разделе: SQL — «SQL»."]] },
+  { section: "Опыт", req: "описывать интеграции с внешними информационными системами", basis: "Описал обмен данными портала с внешней системой обучения", why: "Интеграции — ключевая обязанность в вакансии, а в резюме этот опыт описан общими словами.", became: "Описал интеграцию портала с внешней системой обучения: состав данных и обмен 2 раза в сутки", flags: [["warn", "⚠️ Число не найдено в резюме: 2 — проверьте формулировку."]] },
+  { section: "О себе", req: "опыт работы в банке, МФО или FinTech-проекте", basis: "Проект: личный кабинет клиента с онлайн-оплатой", basisMissing: true, why: "Работодатель — FinTech; близкий опыт с платежами стоит назвать явно.", became: "Работал с онлайн-платежами в клиентском кабинете", flags: [] }
 ];
+// Пробелы: [требование вакансии, фрагмент резюме, если навык из пункта найден в резюме]
+const TIPS_GAPS = [
+  ["понимание процессов кредитования физических лиц", ""],
+  ["знание принципов скоринга и антифрода", ""],
+  ["понимание интеграции через REST API", "«Описал обмен данными портала с внешней системой обучения»"],
+  ["электронный документооборот и цифровая идентификация клиентов", ""]
+];
+const TIPS_GAPS_DEMO = [["опыт работы с брокерами сообщений (Kafka, RabbitMQ)", ""], ["опыт проектирования REST API", ""], ["знание банковского домена", ""]];
+const BEFORE_EDITING = ["«Стало» не завышает сроки, числа и результаты", "Термин действительно относится к моему опыту", "Каждую формулировку готов(а) подтвердить на интервью"];
 
 /* ===== Утилиты ===== */
 const $ = (s, el = document) => el.querySelector(s);
@@ -1123,7 +1135,7 @@ function renderVacancy(id) {
   const v = VACANCIES.find(x => x.id === id);
   const el = $("#s-vacancy");
   if (!v) { el.innerHTML = `<a class="back" href="#vacancies">Вакансии</a><p class="empty">Вакансия не найдена в выгрузках. Вернитесь к списку и выберите другую.</p>`; return; }
-  if (card.id !== id) card = { id, tab: "desc", letterV: null };
+  if (card.id !== id) card = { id, tab: "desc", letterV: null, tipsV: null };
   const rich = id === RICH_ID;
   const okN = rich ? BASIS.filter(b => b[0] === "ok").length : 5;
   const totalN = rich ? BASIS.length + UNCONFIRMED.length : 8;
@@ -1199,19 +1211,35 @@ function renderCardBody(v) {
   }
   // советы
   if (!hasTips(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Советов по резюме для этой вакансии пока нет. Модель предложит правки только там, где в резюме есть основание.</p><button class="btn primary" type="button" data-run="cv-tips">Получить советы</button></div>`; return; }
-  const tips = rich ? TIPS : TIPS.slice(1, 3);
+  const tips = rich ? TIPS : TIPS.slice(1, 3), gaps = rich ? TIPS_GAPS : TIPS_GAPS_DEMO;
+  const tv = p.tips.map((_, i) => i + 1); if (!card.tipsV || !tv.includes(card.tipsV)) card.tipsV = tv[tv.length - 1];
   body.innerHTML = `
-    <div class="versions">Версия <button class="ver" type="button" aria-pressed="true">v${p.tips.length}</button><span>${p.tips[p.tips.length - 1]}</span><span class="demo-flag">демо-текст</span>
+    <div class="versions" role="group" aria-label="Версии советов">Версия ${tv.map(n => `<button class="ver" type="button" data-tver="${n}" aria-pressed="${n === card.tipsV}">v${n}</button>`).join("")}
+      <span>${p.tips[card.tipsV - 1]}</span><span class="demo-flag">демо-текст</span>
       <span style="flex:1"></span><button class="btn" type="button" data-run="cv-tips">Получить новые советы</button></div>
-    <div class="tips">${tips.map((t, i) => `
-      <article class="tip">
-        <h3><span class="n">${i + 1}</span>Раздел «${t.section}»</h3>
-        <dl><dt>Требование вакансии</dt><dd><q>${esc(t.req)}</q></dd>
-            <dt>Основание в резюме</dt><dd class="quote"><q>${esc(t.basis)}</q></dd>
-            <dt>Почему</dt><dd>${esc(t.why)}</dd></dl>
-        <div class="became"><div><div class="small muted">Стало</div><span>${esc(t.became)}</span></div><button class="btn ghost" type="button" data-copy="${esc(t.became)}">Копировать</button></div>
-        ${t.flags.map(([k, l, txt]) => `<div class="flag ${k}"><b>${l}</b><span>${esc(txt)}</span></div>`).join("")}
-      </article>`).join("")}</div>`;
+    <div class="letter-grid">
+      <div class="tips">${tips.map((t, i) => `
+        <article class="tip">
+          <h3><span class="n">${i + 1}</span>Раздел «${t.section}»</h3>
+          <dl><dt>Требование вакансии</dt><dd><q>${esc(t.req)}</q></dd>
+              <dt>Основание в резюме</dt><dd class="quote"><q>${esc(t.basis)}</q>${t.basisMissing ? '<span class="flag-inline"> — ⚠️ цитата не найдена в резюме, проверьте, есть ли такой опыт</span>' : ""}</dd>
+              <dt>Почему</dt><dd>${esc(t.why)}</dd></dl>
+          <div class="became"><div><div class="small muted">Стало</div><span>${esc(t.became)}</span></div><button class="btn ghost" type="button" data-copy="${esc(t.became)}">Копировать</button></div>
+          ${t.flags.map(([k, txt]) => `<div class="flag ${k}">${esc(txt)}</div>`).join("")}
+        </article>`).join("")}</div>
+      <div>
+        <div class="aside callout warn" style="margin:0">
+          <h3>Пробелы: требования вакансии без подтверждения в резюме</h3>
+          <p class="small" style="margin-bottom:6px">Советов по ним нет. Если опыт на самом деле есть — стоит добавить его в резюме; если нет — подготовиться к вопросу на собеседовании.</p>
+          <ul>${gaps.map(([g, found]) => `<li>${esc(g)}${found ? `<span class="flag-inline"> — ⚠️ возможно, есть в резюме: ${esc(found)}</span>` : ""}</li>`).join("")}</ul>
+          ${gaps.some(g => g[1]) ? '<p class="small" style="margin-top:6px">⚠️ — навык из пункта найден в резюме: модель могла ошибиться, проверьте пункт.</p>' : ""}
+        </div>
+        <div class="aside">
+          <h3>Перед правкой резюме</h3>
+          ${BEFORE_EDITING.map(c => `<label class="check"><input type="checkbox"> ${c}</label>`).join("")}
+        </div>
+      </div>
+    </div>`;
 }
 
 /* ===== Запуск команд (имитация) ===== */
@@ -1268,6 +1296,12 @@ function startCommand(cmd, id = card.id || "") {
       warnMsg = `<b>Анализ обновлён без сравнения с резюме.</b> Файл profile/my_cv.md не найден — добавьте резюме и обновите анализ.`;
     }
   }
+  if (cmd === "cv-tips" && !cvMissing && !keyErr) {
+    const total = id === RICH_ID ? TIPS.length : 2;
+    warnText = "check";
+    steps.push(`!Число не найдено в резюме — советов: 1 из ${total}, отмечены ⚠️ в файле`, `!Цитата не найдена в резюме — советов: 1 из ${total}, отмечены ⚠️ в файле`);
+    warnMsg = "<b>Советы готовы, есть предупреждения.</b> Проверьте пункты с ⚠️ перед правкой резюме.";
+  }
   const failAt = cmd !== "analyze" && (cvMissing || keyErr) ? 1 : fail ? Math.ceil(steps.length * 0.6) : -1;
   run = { cmd, i: 0, cancelled: false };
   con.dataset.state = "running"; con.classList.add("open");
@@ -1291,7 +1325,7 @@ function startCommand(cmd, id = card.id || "") {
     if (i >= steps.length) {
       const sec = Math.max(1, Math.round((Date.now() - t0) / 1000));
       if (warnText) {
-        con.dataset.state = "warn"; $("#conState").textContent = `Готово с предупреждением, ${sec} с`;
+        con.dataset.state = "warn"; $("#conState").textContent = `Готово, есть предупреждения — ${sec} с`;
         $("#conMsg").innerHTML = warnMsg;
       } else {
         con.dataset.state = "done"; $("#conState").textContent = `Готово за ${sec} с`;
@@ -1325,7 +1359,7 @@ function onCommandDone(cmd, id, info) {
   if (cmd === "cv-tips" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
     prepared[id].tips.push(info.model);
-    if (card.id === id) { card.tab = "tips"; renderVacancy(id); }
+    if (card.id === id) { card.tab = "tips"; card.tipsV = prepared[id].tips.length; renderVacancy(id); }
     renderVacancies();
   }
 }
@@ -1699,6 +1733,7 @@ document.addEventListener("click", e => {
   if (t.dataset.rank) { $$("[data-rank]").forEach(b => b.setAttribute("aria-selected", String(b === t))); renderBars(t.dataset.rank); return; }
   if (t.dataset.ctab) { card.tab = t.dataset.ctab; renderVacancy(card.id); $(`[data-ctab="${card.tab}"]`).focus(); return; }
   if (t.dataset.ver) { card.letterV = +t.dataset.ver; renderVacancy(card.id); return; }
+  if (t.dataset.tver) { card.tipsV = +t.dataset.tver; renderVacancy(card.id); return; }
   if (t.dataset.addskill) { toast(`«${t.dataset.addskill}» отмечен для раздела «Навыки». Перенесите в резюме вручную.`); return; }
   if (t.dataset.copy) { copy(t.dataset.copy); return; }
   if (t.id === "copyLetter") { copy($("#letterText").textContent); return; }
