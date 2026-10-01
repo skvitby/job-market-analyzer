@@ -649,7 +649,7 @@ tr.added td { background: var(--cover-soft); }
 
       <div class="section-gap">
         <h2>Навыки вне словаря, найденные LLM</h2>
-        <div class="callout warn">Это интерпретация модели <b>claude-haiku-4-5</b> по 59 вакансиям, а не точный поиск. Частые навыки — кандидаты на пополнение словаря.</div>
+        <div class="callout warn">Это интерпретация модели <b data-analysis-model>claude-haiku-4-5</b> по 59 вакансиям, а не точный поиск. Частые навыки — кандидаты на пополнение словаря.</div>
         <div class="tbl-wrap">
           <table class="stack" id="llmTable">
             <thead><tr><th>Навык</th><th>Частота на рынке</th><th>Статус</th><th>Где в резюме</th></tr></thead>
@@ -672,48 +672,8 @@ tr.added td { background: var(--cover-soft); }
 
       <form class="panel" id="fetchPanel" data-cmd="fetch" hidden>
         <h2>Параметры сбора</h2>
-        <p class="hint">По умолчанию — значения из «Настройки → Поиск вакансий». Изменения здесь действуют только на этот запуск и передаются флагами.</p>
-        <div class="panel-grid">
-          <fieldset data-group="region">
-            <legend>Регионы hh</legend>
-            <label class="check"><input type="checkbox" data-arg="--region 113" data-default="1" checked> Россия <span class="muted">113</span></label>
-            <label class="check"><input type="checkbox" data-arg="--region 16" data-default="1" checked> Беларусь <span class="muted">16</span></label>
-            <label class="check"><input type="checkbox" data-arg="--region 1" data-default="0"> Москва <span class="muted">1</span></label>
-            <label class="check"><input type="checkbox" data-arg="--region 40" data-default="0"> Казахстан <span class="muted">40</span></label>
-          </fieldset>
-          <fieldset data-group="experience">
-            <legend>Опыт</legend>
-            <label class="check"><input type="checkbox" data-arg="--experience noExperience" data-default="0"> Без опыта</label>
-            <label class="check"><input type="checkbox" data-arg="--experience between1And3" data-default="1" checked> 1–3 года</label>
-            <label class="check"><input type="checkbox" data-arg="--experience between3And6" data-default="1" checked> 3–6 лет</label>
-            <label class="check"><input type="checkbox" data-arg="--experience moreThan6" data-default="1" checked> Более 6 лет</label>
-          </fieldset>
-          <fieldset data-group="employment">
-            <legend>Занятость</legend>
-            <label class="check"><input type="checkbox" data-arg="--employment full" data-default="1" checked> Полная</label>
-            <label class="check"><input type="checkbox" data-arg="--employment part" data-default="0"> Частичная</label>
-            <label class="check"><input type="checkbox" data-arg="--employment project" data-default="0"> Проектная</label>
-          </fieldset>
-          <fieldset data-group="schedule">
-            <legend>Формат работы</legend>
-            <label class="check"><input type="checkbox" data-arg="--schedule office" data-default="1" checked> В офисе</label>
-            <label class="check"><input type="checkbox" data-arg="--schedule hybrid" data-default="1" checked> Гибрид</label>
-            <label class="check"><input type="checkbox" data-arg="--schedule remote" data-default="1" checked> Удалённо</label>
-          </fieldset>
-          <fieldset data-group="role" class="span2">
-            <legend>Роли в названии вакансии</legend>
-            <div class="cols2" id="fetchRoles"></div>
-          </fieldset>
-          <fieldset>
-            <legend>Зарплата</legend>
-            <label class="inline-field"><span class="sr">Минимальная зарплата</span><input class="input" type="number" min="0" step="100" placeholder="не задана" data-argname="--min-salary"> <span class="muted">RUR</span></label>
-          </fieldset>
-          <fieldset>
-            <legend>Описания</legend>
-            <label class="check"><input type="checkbox" data-arg="--no-details"> Не загружать полные описания</label>
-            <p class="hint">Без описаний анализ идёт по коротким сниппетам и находит меньше навыков.</p>
-          </fieldset>
-        </div>
+        <p class="hint">По умолчанию — сохранённый профиль из «Настройки → Поиск вакансий». Изменения здесь действуют только на этот запуск и передаются флагами.</p>
+        <div class="panel-grid" id="fetchGrid"></div>
         <p class="cmd-line">Команда: <code data-preview></code></p>
         <div class="panel-foot">
           <button class="btn primary" type="submit" data-run="fetch">Запустить сбор</button>
@@ -779,35 +739,35 @@ tr.added td { background: var(--cover-soft); }
               <h2>Где и на каких условиях</h2>
               <div class="field top" role="group" aria-label="Регионы hh"><span>Регионы hh</span>
                 <div class="cols2">
-                  <label class="check"><input type="checkbox" checked> Россия <span class="muted">113</span></label>
-                  <label class="check"><input type="checkbox" checked> Беларусь <span class="muted">16</span></label>
-                  <label class="check"><input type="checkbox"> Москва <span class="muted">1</span></label>
-                  <label class="check"><input type="checkbox"> Санкт-Петербург <span class="muted">2</span></label>
-                  <label class="check"><input type="checkbox"> Минск <span class="muted">1002</span></label>
-                  <label class="check"><input type="checkbox"> Казахстан <span class="muted">40</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="113" checked> Россия <span class="muted">113</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="16" checked> Беларусь <span class="muted">16</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="1"> Москва <span class="muted">1</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="2"> Санкт-Петербург <span class="muted">2</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="1002"> Минск <span class="muted">1002</span></label>
+                  <label class="check"><input type="checkbox" data-s="region" value="40"> Казахстан <span class="muted">40</span></label>
                 </div>
               </div>
               <div class="field top" role="group" aria-label="Опыт"><span>Опыт</span>
                 <div class="cols2">
-                  <label class="check"><input type="checkbox"> Без опыта</label>
-                  <label class="check"><input type="checkbox" checked> 1–3 года</label>
-                  <label class="check"><input type="checkbox" checked> 3–6 лет</label>
-                  <label class="check"><input type="checkbox" checked> Более 6 лет</label>
+                  <label class="check"><input type="checkbox" data-s="experience" value="noExperience"> Без опыта</label>
+                  <label class="check"><input type="checkbox" data-s="experience" value="between1And3" checked> 1–3 года</label>
+                  <label class="check"><input type="checkbox" data-s="experience" value="between3And6" checked> 3–6 лет</label>
+                  <label class="check"><input type="checkbox" data-s="experience" value="moreThan6" checked> Более 6 лет</label>
                 </div>
               </div>
               <label class="field"><span>Занятость</span>
-                <select><option value="full" selected>Полная</option><option value="part">Частичная</option><option value="project">Проектная</option><option value="">Любая</option></select>
+                <select data-s="employment"><option value="full" selected>Полная</option><option value="part">Частичная</option><option value="project">Проектная</option><option value="">Любая</option></select>
               </label>
               <div class="field top" role="group" aria-label="Формат работы"><span>Формат работы</span>
                 <div class="cols2">
-                  <label class="check"><input type="checkbox" checked> В офисе</label>
-                  <label class="check"><input type="checkbox" checked> Гибрид</label>
-                  <label class="check"><input type="checkbox" checked> Удалённо</label>
+                  <label class="check"><input type="checkbox" data-s="schedule" value="office" checked> В офисе</label>
+                  <label class="check"><input type="checkbox" data-s="schedule" value="hybrid" checked> Гибрид</label>
+                  <label class="check"><input type="checkbox" data-s="schedule" value="remote" checked> Удалённо</label>
                 </div>
               </div>
               <div class="field"><span>Зарплата от</span>
-                <span class="inline-field"><label class="sr" for="minSalary">Минимальная зарплата</label><input class="input" id="minSalary" type="number" min="0" step="100" placeholder="не задана">
-                  <label class="sr" for="currency">Валюта</label><select id="currency" style="width:auto"><option selected>RUR</option><option>BYR</option><option>USD</option><option>EUR</option><option>KZT</option></select></span>
+                <span class="inline-field"><label class="sr" for="minSalary">Минимальная зарплата</label><input class="input" id="minSalary" data-s="minSalary" type="number" min="0" step="100" placeholder="не задана">
+                  <label class="sr" for="currency">Валюта</label><select id="currency" data-s="currency" style="width:auto"><option selected>RUR</option><option>BYR</option><option>USD</option><option>EUR</option><option>KZT</option></select></span>
               </div>
             </section>
             <section>
@@ -990,13 +950,15 @@ const NEW_IDS = new Set(["137828745", "137973547", "137899254", "136922721", "13
 const RICH_ID = "137828745";
 
 // Подготовленные материалы — по файлам reports/cover_letters и reports/cv_tips (новые версии в прототипе живут в памяти страницы)
+// Элемент массива — версия (v1, v2…), значение — модель из frontmatter файла этой версии
+const HK = "claude-haiku-4-5", SN = "claude-sonnet-5-5";
 const prepared = {
-  "136902181": { letters: [1, 2, 3], tips: [1] },
-  "136922721": { letters: [1], tips: [1] },
-  "137493556": { letters: [1, 2, 3, 4, 5], tips: [1] },
-  "137587921": { letters: [1, 2, 3], tips: [1, 2, 3, 4] },
-  "137828745": { letters: [1], tips: [1] },
-  "137863250": { letters: [1], tips: [1] }
+  "136902181": { letters: [HK, SN, HK], tips: [HK] },
+  "136922721": { letters: [SN], tips: [SN] },
+  "137493556": { letters: [HK, HK, HK, SN, HK], tips: [HK] },
+  "137587921": { letters: [HK, SN, HK], tips: [HK, HK, HK, HK] },
+  "137828745": { letters: [SN], tips: [SN] },
+  "137863250": { letters: [SN], tips: [SN] }
 };
 
 /* ===== Демо-контент карточки (Кредитон) ===== */
@@ -1084,6 +1046,7 @@ function renderFabric() {
 }
 
 let rankMode = "top";
+let analysisModel = "claude-haiku-4-5"; // модель vacancy_analysis, которой построен текущий отчёт
 function renderBars(mode = rankMode) {
   rankMode = mode;
   let rows;
@@ -1103,7 +1066,7 @@ function renderBars(mode = rankMode) {
   }).join("");
   $("#barsNote").textContent = !cv.present ? "Резюме не найдено — статусы навыков не показаны. Цвет полосы появится после анализа с резюме."
     : mode === "llm"
-    ? "* Навыки вне словаря, найденные моделью claude-haiku-4-5 в двух и более вакансиях. Это интерпретация модели, а не точный поиск."
+    ? "* Навыки вне словаря, найденные моделью " + analysisModel + " в двух и более вакансиях. Это интерпретация модели, а не точный поиск."
     : mode === "all"
       ? "Навыки с долей меньше 5% с резюме не сравниваются — они отмечены серым."
       : "По 59 вакансиям Минска за 09.09–30.09.2026. Цвет полосы — статус навыка в резюме.";
@@ -1196,7 +1159,7 @@ function renderCardBody(v) {
   }
   if (card.tab === "letter") {
     if (!hasLetters(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Письма для этой вакансии пока нет. Модель сверит требования вакансии с резюме и напишет письмо только по подтверждённым пунктам.</p><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать письмо</button></div>`; return; }
-    const vs = p.letters; if (!card.letterV || !vs.includes(card.letterV)) card.letterV = vs[vs.length - 1];
+    const vs = p.letters.map((_, i) => i + 1); if (!card.letterV || !vs.includes(card.letterV)) card.letterV = vs[vs.length - 1];
     const text = rich ? (LETTERS[card.letterV] || LETTERS[2]) : LETTERS[2].replace("Кредитон", v.employer).replace("онлайн-займов", "компании").replace(" к процессам выдачи займов", " в вашей команде");
     const words = text.split(/\s+/).length;
     body.innerHTML = `
@@ -1205,7 +1168,7 @@ function renderCardBody(v) {
       <div class="letter-grid">
         <div>
           <article class="letter"><div class="letter-text" id="letterText">${esc(text)}</div>
-            <div class="letter-foot"><span>${words} слов, claude-sonnet-5-5</span>
+            <div class="letter-foot"><span>${words} слов, ${p.letters[card.letterV - 1]}</span>
               <span class="group"><button class="btn" type="button" id="copyLetter">Копировать</button><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать новую версию</button></span></div>
           </article>
           <h2 class="section-gap" style="margin-bottom:10px">На чём построено письмо</h2>
@@ -1232,7 +1195,7 @@ function renderCardBody(v) {
   if (!hasTips(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Советов по резюме для этой вакансии пока нет. Модель предложит правки только там, где в резюме есть основание.</p><button class="btn primary" type="button" data-run="cv-tips">Получить советы</button></div>`; return; }
   const tips = rich ? TIPS : TIPS.slice(1, 3);
   body.innerHTML = `
-    <div class="versions">Версия <button class="ver" type="button" aria-pressed="true">v${p.tips.length}</button><span class="demo-flag">демо-текст</span>
+    <div class="versions">Версия <button class="ver" type="button" aria-pressed="true">v${p.tips.length}</button><span>${p.tips[p.tips.length - 1]}</span><span class="demo-flag">демо-текст</span>
       <span style="flex:1"></span><button class="btn" type="button" data-run="cv-tips">Получить новые советы</button></div>
     <div class="tips">${tips.map((t, i) => `
       <article class="tip">
@@ -1247,16 +1210,16 @@ function renderCardBody(v) {
 
 /* ===== Запуск команд (имитация) ===== */
 const COMMANDS = {
-  "analyze": { title: "Обновление анализа рынка", steps: ["Чтение выгрузок: 8 файлов", "Фильтр по городу и периоду: 59 вакансий", "Поиск навыков по словарю: 59/59", "LLM claude-haiku-4-5: навыки вне словаря, 59/59", "Сравнение с резюме: 89 навыков", "Отчёт сохранён: reports/market_skills_summary.md"],
+  "analyze": { title: "Обновление анализа рынка", steps: ["Чтение выгрузок: 8 файлов", "Фильтр по городу и периоду: 59 вакансий", "Поиск навыков по словарю: 59/59", "LLM {va}: навыки вне словаря, 59/59", "Сравнение с резюме ({cv}): 89 навыков", "Отчёт сохранён: reports/market_skills_summary.md"],
     done: "Анализ обновлён: 59 вакансий, покрытие резюме 60%.",
     error: ["LLM не ответила за 60 с по 3 вакансиям.", "Остальные 56 обработаны. Запустите анализ ещё раз — готовые ответы возьмутся из кэша."] },
   "fetch": { title: "Сбор вакансий с hh.ru", steps: ["Запрос к hh.ru: роли и регионы из параметров", "Найдено 22 вакансии, новых 7", "Загрузка описаний: 1/7", "Загрузка описаний: 3/7", "Загрузка описаний: 5/7", "Загрузка описаний: 7/7", "Сохранено: data/raw_vacancies_20261001_101500.json"],
     done: "Собрано 22 вакансии, 7 новых. Обновите анализ, чтобы учесть их в рейтинге.",
     error: ["hh.ru не отвечает: превышено время ожидания 30 с.", "Проверьте, что hh.ru в исключениях VPN, и запустите сбор ещё раз."] },
-  "cover-letter": { title: "Сопроводительное письмо", steps: ["Чтение вакансии и резюме", "Генерация письма: claude-sonnet-5-5", "Проверка утверждений по резюме: 10 требований", "Сохранено: reports/cover_letters/cl_{id}_v{n}.md"],
+  "cover-letter": { title: "Сопроводительное письмо", steps: ["Чтение вакансии и резюме", "Генерация письма: {cv}", "Проверка утверждений по резюме: 10 требований", "Сохранено: reports/cover_letters/cl_{id}_v{n}.md"],
     done: "Письмо готово: версия v{n}.",
     error: ["Письмо не прошло проверку: 2 утверждения без цитаты из резюме.", "Письмо не сохранено. Сгенерируйте его ещё раз."] },
-  "cv-tips": { title: "Советы по резюме", steps: ["Чтение вакансии и резюме", "Поиск требований без формулировки в резюме", "Генерация советов: claude-sonnet-5-5", "Проверка оснований по резюме", "Сохранено: reports/cv_tips/cv_tips_{id}.md"],
+  "cv-tips": { title: "Советы по резюме", steps: ["Чтение вакансии и резюме", "Поиск требований без формулировки в резюме", "Генерация советов: {cv}", "Проверка оснований по резюме", "Сохранено: reports/cv_tips/cv_tips_{id}.md"],
     done: "Советы готовы.",
     error: ["Модель вернула ответ не по схеме.", "Советы не сохранены. Запустите команду ещё раз."] }
 };
@@ -1270,16 +1233,36 @@ function startCommand(cmd, id = card.id || "") {
   const def = COMMANDS[cmd]; const fail = $("#failMode").checked;
   const p = prepared[id];
   const n = cmd === "cover-letter" ? (p ? p.letters.length + 1 : 1) : 1;
-  const sub = s => s.replace("{id}", id).replace("{n}", n);
+  // Провайдер и модель — из сохранённых настроек (несохранённые правки на запуск не влияют)
+  const llm = SAVED.llm, label = t => `${llm[t].provider} / ${llm[t].model}`;
+  const sub = s => s.replace("{id}", id).replace("{n}", n).replace("{va}", label("vacancy_analysis")).replace("{cv}", label("cv_processing"));
   const steps = def.steps.map(sub);
+  if (cmd === "fetch") steps[0] = fetchQueryText();
+  // Задачи LLM, нужные команде, и первый ненайденный ключ (как LLMError в llm_service.py)
+  const noLlm = cmd === "analyze" && $("#noLlm").checked;
+  const tasks = cmd === "analyze" ? (noLlm ? [] : ["vacancy_analysis", "cv_processing"]) : cmd === "fetch" ? [] : ["cv_processing"];
+  const keyTask = tasks.find(t => { const k = PROVIDERS[llm[t].provider].key; return k && !ENV_SET.has(k); });
+  const keyErr = keyTask && `В .env не задан ${PROVIDERS[llm[keyTask].provider].key} — ключ для провайдера ${llm[keyTask].provider}`;
+  const llmIdx = steps.findIndex(x => x.startsWith("LLM ")), cmpIdx = steps.findIndex(x => x.startsWith("Сравнение с резюме"));
   // Без резюме — как в CLI: письмо и советы падают сразу, анализ проходит, но без сравнения
   const cvMissing = !cv.present && cmd !== "fetch";
   const errText = cvMissing && cmd !== "analyze"
     ? [`Не найдено резюме profile/my_cv.md — оно нужно для ${cmd === "cover-letter" ? "письма" : "советов"}.`, "Добавьте резюме на экране «Резюме» и запустите команду ещё раз."]
+    : keyErr && cmd !== "analyze" ? [keyErr + ".", "Добавьте ключ в .env или выберите другого провайдера в «Настройки → Модели LLM»."]
     : def.error;
-  const warnText = cvMissing && cmd === "analyze" ? "Файл резюме profile/my_cv.md не найден — сравнение пропущено" : "";
-  if (warnText) steps[steps.indexOf("Сравнение с резюме: 89 навыков")] = "!" + warnText;
-  const failAt = cvMissing && cmd !== "analyze" ? 1 : fail ? Math.ceil(steps.length * 0.6) : -1;
+  // analyze не падает: LLM-этап или сравнение пропускаются с предупреждением (код выхода 0)
+  let warnText = "", warnMsg = "";
+  if (cmd === "analyze") {
+    if (noLlm) { steps.splice(cmpIdx, 1); steps.splice(llmIdx, 1, "Без LLM: навыки вне словаря и сравнение с резюме пропущены"); }
+    else if (keyErr) {
+      warnText = `LLM-этап пропущен: ${keyErr}`; steps.splice(cmpIdx, 1); steps[llmIdx] = "!" + warnText;
+      warnMsg = `<b>Анализ обновлён без LLM-этапа.</b> ${esc(keyErr)}. Добавьте ключ в .env или смените провайдера в настройках.`;
+    } else if (cvMissing) {
+      warnText = "Файл резюме profile/my_cv.md не найден — сравнение пропущено"; steps[cmpIdx] = "!" + warnText;
+      warnMsg = `<b>Анализ обновлён без сравнения с резюме.</b> Файл profile/my_cv.md не найден — добавьте резюме и обновите анализ.`;
+    }
+  }
+  const failAt = cmd !== "analyze" && (cvMissing || keyErr) ? 1 : fail ? Math.ceil(steps.length * 0.6) : -1;
   run = { cmd, i: 0, cancelled: false };
   con.dataset.state = "running"; con.classList.add("open");
   $("#conCmd").textContent = cmd; $("#conTitle").textContent = def.title;
@@ -1303,14 +1286,14 @@ function startCommand(cmd, id = card.id || "") {
       const sec = Math.max(1, Math.round((Date.now() - t0) / 1000));
       if (warnText) {
         con.dataset.state = "warn"; $("#conState").textContent = `Готово с предупреждением, ${sec} с`;
-        $("#conMsg").innerHTML = `<b>Анализ обновлён без сравнения с резюме.</b> Файл profile/my_cv.md не найден — добавьте резюме и обновите анализ.`;
+        $("#conMsg").innerHTML = warnMsg;
       } else {
         con.dataset.state = "done"; $("#conState").textContent = `Готово за ${sec} с`;
         $("#conLog").innerHTML += `<span class="ok">${esc(sub(def.done))}</span>\n`;
         $("#conMsg").textContent = sub(def.done);
       }
       $("#conAction").textContent = "Закрыть"; run = null; setRunButtons(false);
-      onCommandDone(cmd, id); return;
+      onCommandDone(cmd, id, { model: llm.cv_processing.model, vaModel: llm.vacancy_analysis.model, llmRan: tasks.length > 0 && !keyErr }); return;
     }
     const st = steps[i], isWarn = st.startsWith("!");
     $("#conLog").innerHTML += `${new Date().toLocaleTimeString("ru-RU")}  ${isWarn ? `<span class="warn">Предупреждение: ${esc(st.slice(1))}</span>` : esc(st)}\n`;
@@ -1322,17 +1305,20 @@ function startCommand(cmd, id = card.id || "") {
   run.cmd = cmd; run.timer = setTimeout(tick, 250);
   lastRun = { cmd, id };
 }
-function onCommandDone(cmd, id) {
-  if (cmd === "analyze" && cv.present) { cv.stale = false; cv.comparedAt = nowStr(); applyCv(); }
+function onCommandDone(cmd, id, info) {
+  if (cmd === "analyze" && info.llmRan) {
+    analysisModel = info.vaModel; $$("[data-analysis-model]").forEach(b => b.textContent = analysisModel); renderBars();
+    if (cv.present) { cv.stale = false; cv.comparedAt = nowStr(); applyCv(); }
+  }
   if (cmd === "cover-letter" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
-    prepared[id].letters.push(prepared[id].letters.length + 1);
+    prepared[id].letters.push(info.model);
     if (card.id === id) { card.letterV = prepared[id].letters.length; card.tab = "letter"; renderVacancy(id); }
     renderVacancies();
   }
   if (cmd === "cv-tips" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
-    prepared[id].tips.push(prepared[id].tips.length + 1);
+    prepared[id].tips.push(info.model);
     if (card.id === id) { card.tab = "tips"; renderVacancy(id); }
     renderVacancies();
   }
@@ -1395,7 +1381,7 @@ let S = {}, SAVED = null;
 const clone = o => JSON.parse(JSON.stringify(o));
 // S — редактируемое состояние, SAVED — последнее сохранённое (исходно — профиль)
 function snapshot() {
-  if (!SAVED) { SAVED = clone(PROFILE); SAVED.dict = SAVED.dict.map(([n, a]) => ({ name: n, aliases: a })); SAVED.cands = CANDIDATES.map(c => c.slice()); }
+  if (!SAVED) { SAVED = clone(PROFILE); SAVED.dict = SAVED.dict.map(([n, a]) => ({ name: n, aliases: a })); SAVED.cands = CANDIDATES.map(c => c.slice()); SAVED.search = readSearch(); }
   S = clone(SAVED);
 }
 // Сохранённые значения полей формы становятся значениями по умолчанию — form.reset() вернёт к ним
@@ -1439,7 +1425,7 @@ function chipEditor(el, arr, label, onChange) {
   };
 }
 function renderChipLists() {
-  $$(".chips-edit[data-list]").forEach(el => chipEditor(el, S[el.dataset.list], el.dataset.label, () => { if (el.dataset.list === "roles") renderFetchRoles(); }));
+  $$(".chips-edit[data-list]").forEach(el => chipEditor(el, S[el.dataset.list], el.dataset.label, () => {}));
 }
 
 /* словарь */
@@ -1530,9 +1516,39 @@ function checkConn(i, btn) {
 }
 
 /* панели запуска: превью команды */
-function renderFetchRoles() {
-  $("#fetchRoles").innerHTML = S.roles.map(r => `<label class="check"><input type="checkbox" data-arg='--role "${esc(r)}"' data-default="1" checked> ${esc(r)}</label>`).join("");
+const REGIONS = [["113", "Россия"], ["16", "Беларусь"], ["1", "Москва"], ["2", "Санкт-Петербург"], ["1002", "Минск"], ["40", "Казахстан"]];
+const EXPERIENCE = [["noExperience", "Без опыта"], ["between1And3", "1–3 года"], ["between3And6", "3–6 лет"], ["moreThan6", "Более 6 лет"]];
+const EMPLOYMENT = [["full", "Полная"], ["part", "Частичная"], ["project", "Проектная"]];
+const SCHEDULE = [["office", "В офисе"], ["hybrid", "Гибрид"], ["remote", "Удалённо"]];
+// Профиль поиска из полей вкладки «Поиск вакансий»
+function readSearch() {
+  const vals = k => $$(`[data-pane="search"] [data-s="${k}"]`).filter(i => i.checked).map(i => i.value);
+  const one = k => $(`[data-pane="search"] [data-s="${k}"]`).value;
+  return { regions: vals("region"), experience: vals("experience"), employment: one("employment"), schedule: vals("schedule"), minSalary: one("minSalary"), currency: one("currency") };
+}
+function renderFetchPanel() {
+  const sr = SAVED.search, box = (flag, items, on, extra = "") => items.map(([v, l]) =>
+    `<label class="check"><input type="checkbox" data-arg="${flag} ${v}" data-default="${on.includes(v) ? 1 : 0}"${on.includes(v) ? " checked" : ""}> ${l}${flag === "--region" ? ` <span class="muted">${v}</span>` : ""}</label>`).join("") + extra;
+  $("#fetchGrid").innerHTML = `
+    <fieldset data-group="region"><legend>Регионы hh</legend>${box("--region", REGIONS, sr.regions)}</fieldset>
+    <fieldset data-group="experience"><legend>Опыт</legend>${box("--experience", EXPERIENCE, sr.experience)}</fieldset>
+    <fieldset data-group="employment"><legend>Занятость</legend>${box("--employment", EMPLOYMENT, sr.employment ? [sr.employment] : [])}${sr.employment ? "" : '<p class="hint">В профиле — любая</p>'}</fieldset>
+    <fieldset data-group="schedule"><legend>Формат работы</legend>${box("--schedule", SCHEDULE, sr.schedule)}</fieldset>
+    <fieldset data-group="role" class="span2"><legend>Роли в названии вакансии</legend><div class="cols2">${SAVED.roles.map(r => `<label class="check"><input type="checkbox" data-arg='--role "${esc(r)}"' data-default="1" checked> ${esc(r)}</label>`).join("")}</div></fieldset>
+    <fieldset><legend>Зарплата</legend>
+      <label class="inline-field"><span class="sr">Минимальная зарплата</span><input class="input" type="number" min="0" step="100" placeholder="${sr.minSalary ? "профиль: " + sr.minSalary : "не задана"}" data-argname="--min-salary"> <span class="muted">${esc(sr.currency)}</span></label>
+    </fieldset>
+    <fieldset><legend>Описания</legend>
+      <label class="check"><input type="checkbox" data-arg="--no-details"> Не загружать полные описания</label>
+      <p class="hint">Без описаний анализ идёт по коротким сниппетам и находит меньше навыков.</p>
+    </fieldset>`;
   updatePreview($("#fetchPanel"));
+}
+// Первая строка лога fetch: какие регионы и сколько ролей реально уйдут в запрос
+function fetchQueryText() {
+  const f = $("#fetchPanel"), on = g => $$(`[data-group="${g}"] input:checked`, f);
+  const regions = on("region").map(i => i.closest("label").textContent.trim().replace(/\s+\d+$/, ""));
+  return `Запрос к hh.ru: ${regions.join(", ") || "регионы не выбраны"}; ролей: ${on("role").length}`;
 }
 function cmdArgs(form) {
   const args = [];
@@ -1558,7 +1574,7 @@ function togglePanel(form, open) {
 
 function initSettings() {
   snapshot();
-  renderChipLists(); renderDict(); renderCands(); renderTasks(); renderConn(); renderFetchRoles();
+  renderChipLists(); renderDict(); renderCands(); renderTasks(); renderConn(); renderFetchPanel();
   updatePreview($("#analyzePanel"));
   clearDirty();
 }
@@ -1721,7 +1737,7 @@ sform.addEventListener("change", e => {
   }
   if (!notSetting(t)) markDirty();
 });
-sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; SAVED = clone(S); commitFormDefaults(sform); clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
+sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; SAVED = clone(S); SAVED.search = readSearch(); commitFormDefaults(sform); renderFetchPanel(); clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
 $("#resetSettings").addEventListener("click", () => {
   sform.reset(); lastAdded = null; $("#dictSearch").value = ""; $("#newSkillErr").textContent = "";
   $$(".seg-ctl", sform).forEach(g => setPressed(g, g.querySelector('button[data-saved="true"]') || g.querySelector("button")));
