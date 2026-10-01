@@ -6,7 +6,7 @@ tags: [status, job-market-analyzer]
 
 # Состояние проекта
 
-**Обновлено:** 01.10.2026 · **Последний коммит перед этим файлом:** `281a4bf`
+**Обновлено:** 01.10.2026 · **Последний коммит перед этим файлом:** `908902a`
 
 ## Кратко
 
@@ -45,6 +45,7 @@ tags: [status, job-market-analyzer]
 | [README.md](../README.md) | Витрина проекта для портфолио: задача, роль, результаты, артефакты аналитика, запуск |
 | [CLAUDE.md](../CLAUDE.md) | Путь к требованиям для Claude Code и скилла `requirements-interview` |
 | [.claude/skills/jma-dev/](../.claude/skills/jma-dev/SKILL.md) | Скилл проекта для Claude Code: структура, запуск, изменения, проверки, документация, [чек-лист публикации](../.claude/skills/jma-dev/publish-checklist.md) |
+| [docs/claude-skill-jma-dev.md](claude-skill-jma-dev.md) | **Описание скилла `jma-dev` для человека:** как вызвать, аргументы, что требует подтверждения, примеры |
 | [docs/adr/001-llm-provider.md](adr/001-llm-provider.md) | Выбор LLM-провайдера, сравнение моделей, контекст Ollama |
 | [docs/adr/002-vacancy-details-cache.md](adr/002-vacancy-details-cache.md) | Хранение полных описаний вакансий в отдельном кэше `data/details/` |
 | [docs/testing/test-report-us01-03.md](testing/test-report-us01-03.md) | Протокол приёмки US-01 — US-03 |
