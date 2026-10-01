@@ -574,7 +574,7 @@ tr.added td { background: var(--cover-soft); }
           <h2>Чем рынок покрыт резюме</h2>
           <p>Каждая полоска — навык, её ширина — в скольких вакансиях он встречается. Слева то, что резюме подтверждает, справа пробелы.</p>
         </div>
-        <div class="fabric" id="fabric" role="list" aria-label="Навыки рынка по статусу в резюме"></div>
+        <div class="fabric" id="fabric" role="list" aria-label="Навыки рынка по статусу в резюме. Переход между навыками — стрелками"></div>
         <div class="fabric-scale" id="fabricScale"></div>
         <div class="legend">
           <span><i class="sw ok"></i>в «Навыках» резюме, 28</span>
@@ -1024,7 +1024,7 @@ function renderFabric() {
   const covered = items.filter(g => g[2] !== "gap").reduce((s, g) => s + g[1], 0);
   const fab = $("#fabric");
   fab.innerHTML = items.map(g =>
-    `<div class="seg ${g[2]}" role="listitem" tabindex="0" style="flex-grow:${g[1]}" data-n="${esc(g[0])}" data-p="${g[1]}" data-s="${g[2]}" aria-label="${esc(g[0])}: ${g[1]}% вакансий, ${STATUS_TEXT[g[2]].toLowerCase()}"></div>`).join("");
+    `<div class="seg ${g[2]}" role="listitem" tabindex="-1" style="flex-grow:${g[1]}" data-n="${esc(g[0])}" data-p="${g[1]}" data-s="${g[2]}" aria-label="${esc(g[0])}: ${g[1]}% вакансий, ${STATUS_TEXT[g[2]].toLowerCase()}"></div>`).join("");
   const share = covered / total * 100;
   const mark = document.createElement("div");
   mark.className = "fabric-mark"; mark.style.left = `calc(${share}% - 1px)`;
@@ -1037,6 +1037,16 @@ function renderFabric() {
   };
   fab.addEventListener("mouseover", show);
   fab.addEventListener("focusin", show);
+  // в полосе одна остановка Tab; между навыками — стрелками, Home / End
+  const segs = $$(".seg", fab); segs[0].tabIndex = 0;
+  fab.addEventListener("keydown", e => {
+    const i = segs.indexOf(document.activeElement); if (i < 0) return;
+    const j = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: segs.length - 1 }[e.key];
+    if (j === undefined) return;
+    e.preventDefault();
+    const next = segs[Math.max(0, Math.min(segs.length - 1, j))];
+    segs[i].tabIndex = -1; next.tabIndex = 0; next.focus();
+  });
 }
 
 function renderBars(mode) {
@@ -1079,21 +1089,23 @@ function renderGap() {
 }
 
 /* ===== 3. Вакансии ===== */
+const hasLetters = id => !!(prepared[id] && prepared[id].letters.length);
+const hasTips = id => !!(prepared[id] && prepared[id].tips.length);
+const preparedText = id => [hasLetters(id) && `Письмо v${prepared[id].letters.length}`, hasTips(id) && "советы"].filter(Boolean).join(", ");
 let vacFilter = "all";
 function renderVacancies() {
   const q = $("#vacSearch").value.trim().toLowerCase();
   const list = VACANCIES.filter(v =>
-    (vacFilter === "all" || (vacFilter === "new" && NEW_IDS.has(v.id)) || (vacFilter === "letter" && prepared[v.id]) || (vacFilter === "salary" && v.salary)) &&
+    (vacFilter === "all" || (vacFilter === "new" && NEW_IDS.has(v.id)) || (vacFilter === "letter" && hasLetters(v.id)) || (vacFilter === "salary" && v.salary)) &&
     (!q || (v.name + " " + v.employer).toLowerCase().includes(q)));
   $("#vacTable tbody").innerHTML = list.length ? list.map(v => {
-    const p = prepared[v.id];
     return `<tr>
       <td><a href="#vacancy/${v.id}">${esc(v.name)}</a>${NEW_IDS.has(v.id) ? '<span class="tag-new">новая</span>' : ""}</td>
       <td class="emp">${esc(v.employer)}</td>
       <td class="emp">${esc(v.city)}</td>
       <td data-l="Зарплата" style="white-space:nowrap">${fmtSalary(v.salary) || '<span class="muted">не указана</span>'}</td>
       <td data-l="Дата">${fmtDate(v.date)}</td>
-      <td class="has" data-l="Подготовлено">${p ? `Письмо v${p.letters.length}, советы` : '<span class="no">—</span>'}</td>
+      <td class="has" data-l="Подготовлено">${preparedText(v.id) || '<span class="no">—</span>'}</td>
     </tr>`;
   }).join("") : `<tr><td colspan="6" class="empty">Вакансий по этому фильтру нет. Измените поиск или соберите новые вакансии.</td></tr>`;
 }
@@ -1106,7 +1118,6 @@ function renderVacancy(id) {
   if (!v) { el.innerHTML = `<a class="back" href="#vacancies">Вакансии</a><p class="empty">Вакансия не найдена в выгрузках. Вернитесь к списку и выберите другую.</p>`; return; }
   if (card.id !== id) card = { id, tab: "desc", letterV: null };
   const rich = id === RICH_ID;
-  const p = prepared[id];
   const okN = rich ? BASIS.filter(b => b[0] === "ok").length : 5;
   const totalN = rich ? BASIS.length + UNCONFIRMED.length : 8;
   const gaps = rich ? ["Кредитование", "REST API", "Скоринг и антифрод"] : ["API", "Банковский домен", "Kafka"];
@@ -1129,12 +1140,13 @@ function renderVacancy(id) {
     </div>
     <div class="tabs" role="tablist" aria-label="Материалы по вакансии">
       <button class="tab" role="tab" data-ctab="desc" type="button">Описание</button>
-      <button class="tab" role="tab" data-ctab="letter" type="button">Письмо${p ? ` <b>v${p.letters.length}</b>` : ""}</button>
-      <button class="tab" role="tab" data-ctab="tips" type="button">Советы по резюме${p ? ` <b>${rich ? TIPS.length : 2}</b>` : ""}</button>
+      <button class="tab" role="tab" data-ctab="letter" type="button">Письмо${hasLetters(id) ? ` <b>v${prepared[id].letters.length}</b>` : ""}</button>
+      <button class="tab" role="tab" data-ctab="tips" type="button">Советы по резюме${hasTips(id) ? ` <b>${rich ? TIPS.length : 2}</b>` : ""}</button>
     </div>
     <div id="cardBody"></div>`;
   $$("[data-ctab]", el).forEach(b => b.setAttribute("aria-selected", String(b.dataset.ctab === card.tab)));
   renderCardBody(v);
+  if (run) setRunButtons(true); // кнопки, появившиеся во время выполнения команды, тоже недоступны
 }
 
 function renderCardBody(v) {
@@ -1145,7 +1157,7 @@ function renderCardBody(v) {
     return;
   }
   if (card.tab === "letter") {
-    if (!p) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Письма для этой вакансии пока нет. Модель сверит требования вакансии с резюме и напишет письмо только по подтверждённым пунктам.</p><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать письмо</button></div>`; return; }
+    if (!hasLetters(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Письма для этой вакансии пока нет. Модель сверит требования вакансии с резюме и напишет письмо только по подтверждённым пунктам.</p><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать письмо</button></div>`; return; }
     const vs = p.letters; if (!card.letterV || !vs.includes(card.letterV)) card.letterV = vs[vs.length - 1];
     const text = rich ? (LETTERS[card.letterV] || LETTERS[2]) : LETTERS[2].replace("Кредитон", v.employer).replace("онлайн-займов", "компании").replace(" к процессам выдачи займов", " в вашей команде");
     const words = text.split(/\s+/).length;
@@ -1179,7 +1191,7 @@ function renderCardBody(v) {
     return;
   }
   // советы
-  if (!p) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Советов по резюме для этой вакансии пока нет. Модель предложит правки только там, где в резюме есть основание.</p><button class="btn primary" type="button" data-run="cv-tips">Получить советы</button></div>`; return; }
+  if (!hasTips(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Советов по резюме для этой вакансии пока нет. Модель предложит правки только там, где в резюме есть основание.</p><button class="btn primary" type="button" data-run="cv-tips">Получить советы</button></div>`; return; }
   const tips = rich ? TIPS : TIPS.slice(1, 3);
   body.innerHTML = `
     <div class="versions">Версия <button class="ver" type="button" aria-pressed="true">v${p.tips.length}</button><span class="demo-flag">демо-текст</span>
@@ -1213,10 +1225,12 @@ const COMMANDS = {
 const con = $("#console");
 let run = null;
 function setRunButtons(disabled) { $$("[data-run]").forEach(b => b.disabled = disabled); }
-function startCommand(cmd) {
-  if (run) return;
+let lastRun = null;
+// id — вакансия для cover-letter / cv-tips; при «Повторить» берётся из lastRun, а не с текущего экрана
+function startCommand(cmd, id = card.id || "") {
+  if (run) { toast(`Дождитесь завершения команды ${run.cmd}`); return; }
   const def = COMMANDS[cmd]; const fail = $("#failMode").checked;
-  const id = card.id || ""; const p = prepared[id];
+  const p = prepared[id];
   const n = cmd === "cover-letter" ? (p ? p.letters.length + 1 : 1) : 1;
   const sub = s => s.replace("{id}", id).replace("{n}", n);
   const steps = def.steps.map(sub);
@@ -1255,21 +1269,20 @@ function startCommand(cmd) {
     run.i++; run.timer = setTimeout(tick, 550 + Math.random() * 450);
   };
   run.cmd = cmd; run.timer = setTimeout(tick, 250);
-  con.dataset.lastCmd = cmd;
+  lastRun = { cmd, id };
 }
 function onCommandDone(cmd, id) {
   if (cmd === "cover-letter" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
     prepared[id].letters.push(prepared[id].letters.length + 1);
-    card.letterV = prepared[id].letters.length; card.tab = "letter";
-    if (location.hash.startsWith("#vacancy/")) renderVacancy(id);
+    if (card.id === id) { card.letterV = prepared[id].letters.length; card.tab = "letter"; renderVacancy(id); }
     renderVacancies();
   }
   if (cmd === "cv-tips" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
     prepared[id].tips.push(prepared[id].tips.length + 1);
-    card.tab = "tips";
-    if (location.hash.startsWith("#vacancy/")) renderVacancy(id);
+    if (card.id === id) { card.tab = "tips"; renderVacancy(id); }
+    renderVacancies();
   }
 }
 $("#conAction").addEventListener("click", () => {
@@ -1280,7 +1293,7 @@ $("#conAction").addEventListener("click", () => {
     $("#conMsg").textContent = "Команда остановлена. Уже сохранённые результаты не изменились.";
     $("#conAction").textContent = "Закрыть";
   } else if (st === "error" && $("#conAction").textContent === "Повторить") {
-    startCommand(con.dataset.lastCmd);
+    startCommand(lastRun.cmd, lastRun.id);
   } else {
     con.classList.remove("open"); con.dataset.state = "idle";
   }
@@ -1326,8 +1339,23 @@ const CONNECTIONS = [
   ["curl для запросов к hh", ["HH_CURL_PATH"], "Нужен, если curl исключён из VPN. Пусто — curl из PATH", null]
 ];
 
-let S = {};
-function snapshot() { S = JSON.parse(JSON.stringify(PROFILE)); S.dict = S.dict.map(([n, a]) => ({ name: n, aliases: a })); S.cands = CANDIDATES.map(c => c.slice()); }
+let S = {}, SAVED = null;
+const clone = o => JSON.parse(JSON.stringify(o));
+// S — редактируемое состояние, SAVED — последнее сохранённое (исходно — профиль)
+function snapshot() {
+  if (!SAVED) { SAVED = clone(PROFILE); SAVED.dict = SAVED.dict.map(([n, a]) => ({ name: n, aliases: a })); SAVED.cands = CANDIDATES.map(c => c.slice()); }
+  S = clone(SAVED);
+}
+// Сохранённые значения полей формы становятся значениями по умолчанию — form.reset() вернёт к ним
+function commitFormDefaults(form) {
+  $$("input, select", form).forEach(el => {
+    if (el.matches(".chip-add, #dictSearch, #newSkill, select[data-cand]")) return; // служебные поля, не настройки
+    if (el.type === "checkbox" || el.type === "radio") el.defaultChecked = el.checked;
+    else if (el.tagName === "SELECT") [...el.options].forEach(o => o.defaultSelected = o.selected);
+    else el.defaultValue = el.value;
+  });
+  $$(".seg-ctl button", form).forEach(b => b.dataset.saved = b.getAttribute("aria-pressed"));
+}
 let dirty = false, lastAdded = null;
 function markDirty() {
   dirty = true;
@@ -1548,10 +1576,10 @@ sform.addEventListener("change", e => {
   }
   if (!notSetting(t)) markDirty();
 });
-sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
+sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; SAVED = clone(S); commitFormDefaults(sform); clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
 $("#resetSettings").addEventListener("click", () => {
   sform.reset(); lastAdded = null; $("#dictSearch").value = ""; $("#newSkillErr").textContent = "";
-  $$(".seg-ctl", sform).forEach(g => setPressed(g, g.querySelector("button")));
+  $$(".seg-ctl", sform).forEach(g => setPressed(g, g.querySelector('button[data-saved="true"]') || g.querySelector("button")));
   initSettings(); toast("Изменения отменены");
 });
 $("#dictSearch").addEventListener("input", renderDict);
