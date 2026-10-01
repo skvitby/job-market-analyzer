@@ -340,6 +340,11 @@ select, .input { border: 1px solid var(--line-strong); background: var(--surface
 .console[data-state="done"] .con-state { color: var(--cover); }
 .console[data-state="error"] .con-state { color: var(--error); }
 .console[data-state="warn"] .con-state { color: var(--gap); }
+.console[data-state="cancelled"] .con-state { color: var(--muted); }
+.console[data-state="cancelled"] .con-prog i { background: var(--muted); }
+/* «Отменить» — во время выполнения, «Повторить» — после ошибки; «Закрыть» — всегда, кроме выполнения */
+.console:not([data-state="running"]):not([data-state="error"]) #conAction { display: none; }
+.console[data-state="running"] #conClose { display: none; }
 .console[data-state="warn"] .con-prog i { background: var(--gap); }
 .console[data-state="warn"] .con-msg b { color: var(--gap); }
 .con-log .warn { color: var(--gap); }
@@ -913,6 +918,7 @@ tr.added td { background: var(--cover-soft); }
     <span class="con-state" id="conState" aria-live="polite"></span>
     <button class="btn ghost" id="conLogBtn" type="button" aria-expanded="true">Скрыть лог</button>
     <button class="btn" id="conAction" type="button">Отменить</button>
+    <button class="btn ghost" id="conClose" type="button">Закрыть</button>
   </div>
   <div class="con-msg" id="conMsg"></div>
   <pre class="con-log" id="conLog"></pre>
@@ -1292,7 +1298,7 @@ function startCommand(cmd, id = card.id || "") {
         $("#conLog").innerHTML += `<span class="ok">${esc(sub(def.done))}</span>\n`;
         $("#conMsg").textContent = sub(def.done);
       }
-      $("#conAction").textContent = "Закрыть"; run = null; setRunButtons(false);
+      run = null; setRunButtons(false);
       onCommandDone(cmd, id, { model: llm.cv_processing.model, vaModel: llm.vacancy_analysis.model, llmRan: tasks.length > 0 && !keyErr }); return;
     }
     const st = steps[i], isWarn = st.startsWith("!");
@@ -1327,15 +1333,14 @@ $("#conAction").addEventListener("click", () => {
   const st = con.dataset.state;
   if (st === "running" && run) {
     clearTimeout(run.timer); run.cancelled = true; run = null; setRunButtons(false);
-    con.dataset.state = "error"; $("#conState").textContent = "Отменено";
+    con.dataset.state = "cancelled"; $("#conState").textContent = "Отменено";
     $("#conMsg").textContent = "Команда остановлена. Уже сохранённые результаты не изменились.";
-    $("#conAction").textContent = "Закрыть";
-  } else if (st === "error" && $("#conAction").textContent === "Повторить") {
+    $("#conClose").focus(); // «Отменить» скрывается — фокус не должен потеряться
+  } else if (st === "error") {
     startCommand(lastRun.cmd, lastRun.id);
-  } else {
-    con.classList.remove("open"); con.dataset.state = "idle";
   }
 });
+$("#conClose").addEventListener("click", () => { con.classList.remove("open"); con.dataset.state = "idle"; });
 $("#conLogBtn").addEventListener("click", e => {
   const log = $("#conLog"); log.hidden = !log.hidden;
   e.target.textContent = log.hidden ? "Показать лог" : "Скрыть лог";
