@@ -381,6 +381,18 @@ select, .input { border: 1px solid var(--line-strong); background: var(--surface
   opacity: 0; transform: translateY(-6px); transition: opacity .18s, transform .18s; pointer-events: none;
 }
 .toast.show { opacity: 1; transform: none; }
+/* диалог подтверждения */
+.dlg { border: 1px solid var(--line-strong); border-radius: 10px; padding: 22px 24px; max-width: 440px; width: calc(100% - 32px);
+  background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.dlg::backdrop { background: rgba(18, 23, 31, .45); }
+.dlg h2 { margin-bottom: 8px; }
+.dlg p { color: var(--ink-2); margin-bottom: 18px; }
+.dlg-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.btn.danger { background: var(--error); border-color: var(--error); color: #fff; }
+.foot-toggle { display: none; }
+.not-found { font-size: 14px; color: var(--ink-2); margin-top: 16px; max-width: 80ch; }
+.not-found b { font-weight: 500; color: var(--ink); }
+.letter-foot .over { color: var(--gap); }
 
 /* ---------- responsive ---------- */
 
@@ -478,7 +490,12 @@ tr.added td { background: var(--cover-soft); }
   .nav { flex-direction: row; overflow-x: auto; gap: 0; margin: 0 -16px; padding: 0 10px; }
   .nav a, .nav .soon { white-space: nowrap; border-radius: 0; padding: 8px 10px; }
   .nav a[aria-current="page"] { background: none; box-shadow: inset 0 -2px 0 var(--cover); }
-  .side-foot { display: none; }
+  .side-foot { display: none; margin: 0 -16px; padding: 10px 16px 12px; }
+  .side.show-foot .side-foot { display: grid; }
+  .brand { align-items: center; }
+  .brand b { white-space: nowrap; }
+  .brand > span { display: none; }
+  .foot-toggle { display: inline-block; margin-left: auto; background: none; border: 1px solid var(--line-strong); border-radius: 6px; padding: 2px 10px; font-size: 13px; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
   main { padding: 20px 16px 160px; }
   .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kpi:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--line); }
@@ -513,7 +530,7 @@ tr.added td { background: var(--cover-soft); }
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><b>Job Market Analyzer</b><span>рынок BA/SA</span></div>
+    <div class="brand"><b>Job Market Analyzer</b><span>рынок BA/SA</span><button class="foot-toggle" id="footToggle" type="button" aria-expanded="false" aria-controls="sideFoot">Тема и демо</button></div>
     <nav class="nav" aria-label="Разделы">
       <a href="#overview" data-nav="overview">Обзор рынка</a>
       <a href="#gap" data-nav="gap">Gap-анализ</a>
@@ -522,7 +539,7 @@ tr.added td { background: var(--cover-soft); }
       <a href="#settings" data-nav="settings">Настройки</a>
       <span class="soon" aria-disabled="true">Тренды <small>скоро</small></span>
     </nav>
-    <div class="side-foot">
+    <div class="side-foot" id="sideFoot">
       <div>Данные на 30.09.2026, 23:56</div>
       <label><input type="checkbox" id="failMode"> Демо: команды завершаются ошибкой</label>
       <label><input type="checkbox" id="noCvMode"> Демо: резюме не найдено</label>
@@ -613,12 +630,13 @@ tr.added td { background: var(--cover-soft); }
 
       <h2 style="margin-bottom:10px">Рейтинг навыков</h2>
       <div class="tabs" role="tablist" aria-label="Набор навыков">
-        <button class="tab" role="tab" aria-selected="true" data-rank="top" type="button">Топ-20</button>
-        <button class="tab" role="tab" aria-selected="false" data-rank="all" type="button">Все из словаря <b>79</b></button>
-        <button class="tab" role="tab" aria-selected="false" data-rank="llm" type="button">Найдены LLM <b>18</b></button>
+        <button class="tab" role="tab" aria-selected="true" data-rank="top" aria-controls="bars" type="button">Топ-20</button>
+        <button class="tab" role="tab" aria-selected="false" data-rank="all" aria-controls="bars" type="button">Все из словаря <b>79</b></button>
+        <button class="tab" role="tab" aria-selected="false" data-rank="llm" aria-controls="bars" type="button">Найдены LLM <b>18</b></button>
       </div>
-      <div class="bars" id="bars"></div>
+      <div class="bars" id="bars" role="tabpanel"></div>
       <p class="note" id="barsNote"></p>
+      <p class="not-found" id="notFound" hidden></p>
     </section>
 
     <!-- 2. Gap-анализ -->
@@ -690,10 +708,10 @@ tr.added td { background: var(--cover-soft); }
       </form>
 
       <div class="tabs" role="tablist" aria-label="Вакансии и выгрузки">
-        <button class="tab" role="tab" aria-selected="true" data-vtab="list" type="button">Вакансии <b>59</b></button>
-        <button class="tab" role="tab" aria-selected="false" data-vtab="hist" type="button">Выгрузки <b id="histCount">8</b></button>
+        <button class="tab" role="tab" aria-selected="true" aria-controls="listPane" data-vtab="list" type="button">Вакансии <b>59</b></button>
+        <button class="tab" role="tab" aria-selected="false" aria-controls="histPane" data-vtab="hist" type="button">Выгрузки <b id="histCount">8</b></button>
       </div>
-      <div class="hist" id="histPane" hidden>
+      <div class="hist" id="histPane" role="tabpanel" hidden>
         <p class="lead">Анализ объединяет все выгрузки без повторов: если вакансия есть в нескольких файлах, берётся запись из самого свежего. Полные описания лежат в кэше <code>data/details/</code> — <span id="detailsCount">65</span>, загружаются один раз на вакансию.</p>
         <div class="tbl-wrap">
           <table class="stack" id="histTable">
@@ -703,7 +721,7 @@ tr.added td { background: var(--cover-soft); }
         </div>
         <p class="note">«В отчёте» — вакансии Минска, которые вошли в последний анализ. Пустые выгрузки — новых вакансий с прошлого раза не было.</p>
       </div>
-      <div id="listPane">
+      <div id="listPane" role="tabpanel">
       <div class="toolbar">
         <div class="group" role="group" aria-label="Фильтр вакансий" id="vacFilter">
           <button class="pill" aria-pressed="true" data-f="all" type="button">Все <b></b></button>
@@ -738,16 +756,16 @@ tr.added td { background: var(--cover-soft); }
         </div>
       </div>
       <div class="tabs" role="tablist" aria-label="Разделы настроек">
-        <button class="tab" role="tab" aria-selected="true" data-stab="search" type="button">Поиск вакансий</button>
-        <button class="tab" role="tab" aria-selected="false" data-stab="dict" type="button">Словарь навыков <b id="dictCount">88</b></button>
-        <button class="tab" role="tab" aria-selected="false" data-stab="llm" type="button">Модели LLM</button>
-        <button class="tab" role="tab" aria-selected="false" data-stab="letter" type="button">Письмо</button>
-        <button class="tab" role="tab" aria-selected="false" data-stab="conn" type="button">Подключения</button>
+        <button class="tab" role="tab" aria-selected="true" data-stab="search" aria-controls="pane-search" type="button">Поиск вакансий</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="dict" aria-controls="pane-dict" type="button">Словарь навыков <b id="dictCount">88</b></button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="llm" aria-controls="pane-llm" type="button">Модели LLM</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="letter" aria-controls="pane-letter" type="button">Письмо</button>
+        <button class="tab" role="tab" aria-selected="false" data-stab="conn" aria-controls="pane-conn" type="button">Подключения</button>
       </div>
 
       <form id="settingsForm" autocomplete="off">
         <!-- Поиск вакансий -->
-        <div class="stab" data-pane="search">
+        <div class="stab" id="pane-search" role="tabpanel" data-pane="search">
           <div class="form">
             <section>
               <h2>Что ищем</h2>
@@ -806,7 +824,7 @@ tr.added td { background: var(--cover-soft); }
         </div>
 
         <!-- Словарь навыков -->
-        <div class="stab" data-pane="dict" hidden>
+        <div class="stab" id="pane-dict" role="tabpanel" data-pane="dict" hidden>
           <p class="lead">По словарю ищутся навыки в описаниях вакансий. Русские слова — по основе: «интеграци» найдёт «интеграция» и «интеграций». Английские слова и короткие аббревиатуры (ТЗ, ПМИ) — только целым словом.</p>
           <div class="toolbar">
             <label class="sr" for="dictSearch">Найти навык или синоним</label>
@@ -844,7 +862,7 @@ tr.added td { background: var(--cover-soft); }
         </div>
 
         <!-- Модели LLM -->
-        <div class="stab" data-pane="llm" hidden>
+        <div class="stab" id="pane-llm" role="tabpanel" data-pane="llm" hidden>
           <div class="form">
             <section class="task" data-task="vacancy_analysis">
               <h2>Разбор вакансий <code>vacancy_analysis</code></h2>
@@ -876,7 +894,7 @@ tr.added td { background: var(--cover-soft); }
         </div>
 
         <!-- Письмо -->
-        <div class="stab" data-pane="letter" hidden>
+        <div class="stab" id="pane-letter" role="tabpanel" data-pane="letter" hidden>
           <div class="form">
             <div class="field"><span id="l-lang">Язык письма</span>
               <div>
@@ -898,13 +916,13 @@ tr.added td { background: var(--cover-soft); }
               <div class="chips-edit" data-list="focusAreas" data-label="тему"></div>
             </div>
             <label class="field"><span>Объём письма<small>Ориентир; длиннее на 20% — предупреждение в отчёте</small></span>
-              <span class="inline-field"><input class="input num" type="number" min="80" max="500" step="10" value="250"> слов</span>
+              <span class="inline-field"><input class="input num" type="number" min="40" max="500" step="10" value="250" data-s="maxWords" aria-label="Объём письма, слов"> слов</span>
             </label>
           </div>
         </div>
 
         <!-- Подключения -->
-        <div class="stab" data-pane="conn" hidden>
+        <div class="stab" id="pane-conn" role="tabpanel" data-pane="conn" hidden>
           <p class="lead">Ключи и токены хранятся в файле <code>.env</code> и в интерфейсе не показываются. Чтобы изменить значение, отредактируйте <code>.env</code> и перезапустите приложение.</p>
           <div class="tbl-wrap">
             <table class="stack" id="connTable">
@@ -942,6 +960,10 @@ tr.added td { background: var(--cover-soft); }
   <pre class="con-log" id="conLog"></pre>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<dialog class="dlg" id="dlg" aria-labelledby="dlgTitle" aria-describedby="dlgText">
+  <h2 id="dlgTitle"></h2><p id="dlgText"></p>
+  <div class="dlg-actions" id="dlgActions"></div>
+</dialog>
 
 <script>
 /* ===== Данные ===== */
@@ -1084,6 +1106,8 @@ function renderFabric() {
 }
 
 let rankMode = "top";
+// Навыки словаря, которых нет ни в одной вакансии (раздел отчёта «Не встретились ни в одной вакансии»)
+const NOT_FOUND = ["DFD", "ArchiMate", "Activity Diagram", "Bizagi", "PowerDesigner", "Enterprise Architect", "ESB", "Linux", "Тест-кейсы"];
 let analysisModel = "claude-haiku-4-5"; // модель vacancy_analysis, которой построен текущий отчёт
 function renderBars(mode = rankMode) {
   rankMode = mode;
@@ -1102,6 +1126,8 @@ function renderBars(mode = rankMode) {
       <span class="st ${st === "gap" ? "gap" : ""}"><i class="sw ${st}" aria-hidden="true"></i> <span class="txt">${STATUS_TEXT[st]}</span><span class="sr">${STATUS_TEXT[st]}</span></span>
     </div>`;
   }).join("");
+  $("#notFound").hidden = mode !== "all";
+  $("#notFound").innerHTML = `<b>Не встретились ни в одной из 59 вакансий:</b> ${NOT_FOUND.join(", ")}. Их можно убрать из словаря или из резюме, если они занимают место в «Навыках».`;
   $("#barsNote").textContent = !cv.present ? "Резюме не найдено — статусы навыков не показаны. Цвет полосы появится после анализа с резюме."
     : mode === "llm"
     ? "* Навыки вне словаря, найденные моделью " + analysisModel + " в двух и более вакансиях. Это интерпретация модели, а не точный поиск."
@@ -1116,7 +1142,7 @@ function renderGap() {
   const q = $("#gapSearch").value.trim().toLowerCase();
   const pass = g => (gapFilter === "all" || g[2] === gapFilter) && (!q || g[0].toLowerCase().includes(q));
   const row = g => `<tr>
-    <td data-l="Навык"><b style="font-weight:500">${esc(g[0])}</b>${g[3] ? " <span class='muted'>*</span>" : ""}</td>
+    <td><b style="font-weight:500">${esc(g[0])}</b>${g[3] ? " <span class='muted'>*</span>" : ""}</td>
     <td data-l="Частота"><span class="mini"><b>${g[1]}%</b><i style="width:${g[1] * 1.4}px"></i></span></td>
     <td data-l="Статус"><span class="status ${g[2] === "gap" ? "gap" : ""}"><i class="sw ${g[2]}" aria-hidden="true"></i>${STATUS_TEXT[g[2]]}</span></td>
     <td>${quoteFor(g[0], g[2])}${g[2] === "exp" ? `<br><button class="act" type="button" data-addskill="${esc(g[0])}">Добавить в «Навыки»</button>` : ""}</td>
@@ -1226,11 +1252,11 @@ function renderVacancy(id) {
       </div>
     </div>`}
     <div class="tabs" role="tablist" aria-label="Материалы по вакансии">
-      <button class="tab" role="tab" data-ctab="desc" type="button">Описание</button>
-      <button class="tab" role="tab" data-ctab="letter" type="button">Письмо${hasLetters(id) ? ` <b>v${prepared[id].letters.length}</b>` : ""}</button>
-      <button class="tab" role="tab" data-ctab="tips" type="button">Советы по резюме${hasTips(id) ? ` <b>${rich ? TIPS.length : 2}</b>` : ""}</button>
+      <button class="tab" role="tab" aria-controls="cardBody" data-ctab="desc" type="button">Описание</button>
+      <button class="tab" role="tab" aria-controls="cardBody" data-ctab="letter" type="button">Письмо${hasLetters(id) ? ` <b>v${prepared[id].letters.length}</b>` : ""}</button>
+      <button class="tab" role="tab" aria-controls="cardBody" data-ctab="tips" type="button">Советы по резюме${hasTips(id) ? ` <b>${rich ? TIPS.length : 2}</b>` : ""}</button>
     </div>
-    <div id="cardBody"></div>`;
+    <div id="cardBody" role="tabpanel"></div>`;
   $$("[data-ctab]", el).forEach(b => b.setAttribute("aria-selected", String(b.dataset.ctab === card.tab)));
   renderCardBody(v);
   if (run) setRunButtons(true); // кнопки, появившиеся во время выполнения команды, тоже недоступны
@@ -1246,15 +1272,14 @@ function renderCardBody(v) {
   if (card.tab === "letter") {
     if (!hasLetters(v.id)) { body.innerHTML = `<div class="empty"><p style="margin-bottom:12px">Письма для этой вакансии пока нет. Модель сверит требования вакансии с резюме и напишет письмо только по подтверждённым пунктам.</p><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать письмо</button></div>`; return; }
     const vs = p.letters.map((_, i) => i + 1); if (!card.letterV || !vs.includes(card.letterV)) card.letterV = vs[vs.length - 1];
-    const text = rich ? (LETTERS[card.letterV] || LETTERS[2]) : LETTERS[2].replace("Кредитон", v.employer).replace("онлайн-займов", "компании").replace(" к процессам выдачи займов", " в вашей команде");
-    const words = text.split(/\s+/).length;
+    const text = letterText(v, card.letterV), words = wordCount(text), max = SAVED.maxWords;
     body.innerHTML = `
       <div class="versions" role="group" aria-label="Версии письма">Версия ${vs.map(n => `<button class="ver" type="button" data-ver="${n}" aria-pressed="${n === card.letterV}">v${n}</button>`).join("")}
         <span class="demo-flag">демо-текст</span></div>
       <div class="letter-grid">
         <div>
           <article class="letter"><div class="letter-text" id="letterText">${esc(text)}</div>
-            <div class="letter-foot"><span>${words} слов, ${p.letters[card.letterV - 1]}</span>
+            <div class="letter-foot"><span>${words} слов${words > max * 1.2 ? ` <span class="over">— длиннее ориентира ${max} слов больше чем на 20%</span>` : ""}, ${p.letters[card.letterV - 1]}</span>
               <span class="group"><button class="btn" type="button" id="copyLetter">Копировать</button><button class="btn primary" type="button" data-run="cover-letter">Сгенерировать новую версию</button></span></div>
           </article>
           <h2 class="section-gap" style="margin-bottom:10px">На чём построено письмо</h2>
@@ -1310,6 +1335,13 @@ function renderCardBody(v) {
     </div>`;
 }
 
+// Демо-текст письма версии ver; у вакансий без своего текста — общий шаблон с названием работодателя
+function letterText(v, ver) {
+  return v.id === RICH_ID ? (LETTERS[ver] || LETTERS[2])
+    : LETTERS[2].replace("Кредитон", v.employer).replace("онлайн-займов", "компании").replace(" к процессам выдачи займов", " в вашей команде");
+}
+const wordCount = text => text.split(/\s+/).filter(Boolean).length;
+
 /* ===== Запуск команд (имитация) ===== */
 const COMMANDS = {
   "analyze": { title: "Обновление анализа рынка", steps: ["Чтение выгрузок: 8 файлов", "Фильтр по городу и периоду: 59 вакансий", "Поиск навыков по словарю: 59/59", "LLM {va}: навыки вне словаря, 59/59", "Сравнение с резюме ({cv}): 89 навыков", "Отчёт сохранён: reports/market_skills_summary.md"],
@@ -1363,6 +1395,14 @@ function startCommand(cmd, id = card.id || "") {
     } else if (cvMissing) {
       warnText = "Файл резюме profile/my_cv.md не найден — сравнение пропущено"; steps[cmpIdx] = "!" + warnText;
       warnMsg = `<b>Анализ обновлён без сравнения с резюме.</b> Файл profile/my_cv.md не найден — добавьте резюме и обновите анализ.`;
+    }
+  }
+  // AC 4.5: письмо длиннее ориентира больше чем на 20% — предупреждение
+  if (cmd === "cover-letter" && !cvMissing && !keyErr) {
+    const words = wordCount(letterText(VACANCIES.find(x => x.id === id), n)), max = SAVED.maxWords;
+    if (words > max * 1.2) {
+      warnText = "length"; steps.push(`!Письмо длиннее ориентира: ${words} слов при cover_letter_max_words = ${max}`);
+      warnMsg = `<b>Письмо готово, но длиннее ориентира:</b> ${words} слов при ${max}. Сократите текст или увеличьте объём в «Настройки → Письмо».`;
     }
   }
   if (cmd === "cv-tips" && !cvMissing && !keyErr) {
@@ -1490,7 +1530,7 @@ let S = {}, SAVED = null;
 const clone = o => JSON.parse(JSON.stringify(o));
 // S — редактируемое состояние, SAVED — последнее сохранённое (исходно — профиль)
 function snapshot() {
-  if (!SAVED) { SAVED = clone(PROFILE); SAVED.dict = SAVED.dict.map(([n, a]) => ({ name: n, aliases: a })); SAVED.cands = CANDIDATES.map(c => c.slice()); SAVED.search = readSearch(); }
+  if (!SAVED) { SAVED = clone(PROFILE); SAVED.dict = SAVED.dict.map(([n, a]) => ({ name: n, aliases: a })); SAVED.cands = CANDIDATES.map(c => c.slice()); SAVED.search = readSearch(); SAVED.maxWords = readMaxWords(); }
   S = clone(SAVED);
 }
 // Сохранённые значения полей формы становятся значениями по умолчанию — form.reset() вернёт к ним
@@ -1635,6 +1675,7 @@ function readSearch() {
   const one = k => $(`[data-pane="search"] [data-s="${k}"]`).value;
   return { regions: vals("region"), experience: vals("experience"), employment: one("employment"), schedule: vals("schedule"), minSalary: one("minSalary"), currency: one("currency") };
 }
+const readMaxWords = () => +$('[data-s="maxWords"]').value || 250;
 function renderFetchPanel() {
   const sr = SAVED.search, box = (flag, items, on, extra = "") => items.map(([v, l]) =>
     `<label class="check"><input type="checkbox" data-arg="${flag} ${v}" data-default="${on.includes(v) ? 1 : 0}"${on.includes(v) ? " checked" : ""}> ${l}${flag === "--region" ? ` <span class="muted">${v}</span>` : ""}</label>`).join("") + extra;
@@ -1775,9 +1816,39 @@ function applyCv() {
   if (card.id) renderVacancy(card.id);
 }
 
+/* ===== Диалог подтверждения ===== */
+// buttons: [[текст, значение, класс]]; возвращает Promise со значением нажатой кнопки (Esc — "cancel")
+function ask(title, text, buttons) {
+  const d = $("#dlg");
+  $("#dlgTitle").textContent = title; $("#dlgText").textContent = text;
+  $("#dlgActions").innerHTML = buttons.map(([l, v, c]) => `<button class="btn ${c || ""}" type="button" value="${v}">${l}</button>`).join("");
+  return new Promise(res => {
+    const done = v => { d.close(); res(v); };
+    $("#dlgActions").onclick = e => { const b = e.target.closest("button"); if (b) done(b.value); };
+    d.oncancel = e => { e.preventDefault(); done("cancel"); };
+    d.showModal();
+    ($("#dlgActions .primary") || $("#dlgActions button")).focus(); // по умолчанию — безопасный вариант
+  });
+}
+
 /* ===== Навигация ===== */
 const SCREENS = ["overview", "gap", "vacancies", "vacancy", "resume", "settings"];
+let currentHash = location.hash || "#overview", guardBusy = false;
 function route() {
+  // Уход из настроек с несохранёнными изменениями: возвращаемся и спрашиваем
+  if (dirty && currentHash === "#settings" && location.hash !== "#settings" && !guardBusy) {
+    const target = location.hash || "#overview";
+    guardBusy = true; history.replaceState(null, "", "#settings");
+    ask("Сохранить изменения в настройках?", "Есть несохранённые изменения. Без сохранения они не попадут в profile/preferences.json и не повлияют на команды.",
+      [["Остаться", "stay"], ["Не сохранять", "discard"], ["Сохранить", "save", "primary"]]).then(v => {
+      guardBusy = false;
+      if (v === "save") $("#settingsForm").requestSubmit();
+      if (v === "discard") $("#resetSettings").click();
+      if (v === "save" || v === "discard") location.hash = target;
+    });
+    return;
+  }
+  currentHash = location.hash || "#overview";
   const h = location.hash.slice(1) || "overview";
   const [name, arg] = h.split("/");
   const scr = SCREENS.includes(name) ? name : "overview";
@@ -1790,6 +1861,7 @@ function route() {
   window.scrollTo(0, 0);
 }
 window.addEventListener("hashchange", route);
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
 /* ===== События ===== */
 document.addEventListener("click", e => {
@@ -1801,7 +1873,12 @@ document.addEventListener("click", e => {
     toast("Отчёт строится заново — проверьте параметры и запустите анализ"); return;
   }
   if (t.dataset.rank) { $$("[data-rank]").forEach(b => b.setAttribute("aria-selected", String(b === t))); renderBars(t.dataset.rank); return; }
-  if (t.dataset.ctab) { card.tab = t.dataset.ctab; renderVacancy(card.id); $(`[data-ctab="${card.tab}"]`).focus(); return; }
+  if (t.dataset.ctab) {
+    if (!card.id) return; // вкладка скрытой карточки — не реагируем
+    card.tab = t.dataset.ctab; renderVacancy(card.id);
+    const b = $(`[data-ctab="${card.tab}"]`); if (e.detail === 0 && b) b.focus(); // фокус — только при управлении с клавиатуры
+    return;
+  }
   if (t.dataset.ver) { card.letterV = +t.dataset.ver; renderVacancy(card.id); return; }
   if (t.dataset.tver) { card.tipsV = +t.dataset.tver; renderVacancy(card.id); return; }
   if (t.dataset.vtab) {
@@ -1852,7 +1929,7 @@ sform.addEventListener("change", e => {
   }
   if (!notSetting(t)) markDirty();
 });
-sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; SAVED = clone(S); SAVED.search = readSearch(); commitFormDefaults(sform); renderFetchPanel(); clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
+sform.addEventListener("submit", e => { e.preventDefault(); if (!dirty) return; SAVED = clone(S); SAVED.search = readSearch(); SAVED.maxWords = readMaxWords(); commitFormDefaults(sform); renderFetchPanel(); clearDirty("Сохранено в profile/preferences.json"); toast("Настройки сохранены в profile/preferences.json"); });
 $("#resetSettings").addEventListener("click", () => {
   sform.reset(); lastAdded = null; $("#dictSearch").value = ""; $("#newSkillErr").textContent = "";
   $$(".seg-ctl", sform).forEach(g => setPressed(g, g.querySelector('button[data-saved="true"]') || g.querySelector("button")));
@@ -1870,8 +1947,14 @@ $("#s-settings").addEventListener("click", e => {
     return;
   }
   if (t.dataset.del) {
-    S.dict = S.dict.filter(d => d.name !== t.dataset.del); renderDict(); renderCandSelects(); markDirty();
-    toast(`«${t.dataset.del}» удалён из словаря`); return;
+    const name = t.dataset.del, c = freqOf(name);
+    ask(`Удалить «${name}» из словаря?`, c ? `Навык встречается в ${c} из 59 вакансий (${Math.round(c / 59 * 100)}%). После анализа он пропадёт из рейтинга и сравнения с резюме.` : "Навык не встретился ни в одной вакансии. Синонимы удалятся вместе с ним.",
+      [["Отмена", "cancel"], ["Удалить", "del", "danger"]]).then(v => {
+      if (v !== "del") { t.focus(); return; }
+      S.dict = S.dict.filter(d => d.name !== name); renderDict(); renderCandSelects(); markDirty();
+      toast(`«${name}» удалён из словаря. Чтобы вернуть, нажмите «Отменить изменения»`);
+    });
+    return;
   }
   if (t.dataset.cadd) {
     const i = +t.dataset.cadd, [name] = S.cands[i], target = $(`select[data-cand="${i}"]`).value;
@@ -1891,6 +1974,27 @@ $("#s-settings").addEventListener("click", e => {
   }
   if (t.dataset.check) { checkConn(+t.dataset.check, t); return; }
 });
+// п. 18: тема и демо-переключатели на мобильном
+$("#footToggle").addEventListener("click", e => {
+  const side = $(".side"), open = side.classList.toggle("show-foot");
+  e.currentTarget.setAttribute("aria-expanded", String(open));
+});
+// Вкладки: стрелки / Home / End переключают и переводят фокус; Tab попадает только на выбранную
+function syncTabIndex() { $$('[role="tab"]').forEach(b => b.tabIndex = b.getAttribute("aria-selected") === "true" ? 0 : -1); }
+document.addEventListener("keydown", e => {
+  const tab = e.target.closest('[role="tab"]'); if (!tab) return;
+  const tabs = $$('[role="tab"]', tab.parentElement), i = tabs.indexOf(tab);
+  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (j === undefined) return;
+  e.preventDefault();
+  const label = tab.parentElement.getAttribute("aria-label");
+  tabs[(j + tabs.length) % tabs.length].click();
+  const list = $$(`[role="tablist"][aria-label="${label}"]`)[0];
+  if (list) { const sel = list.querySelector('[aria-selected="true"]'); if (sel) sel.focus(); }
+});
+document.addEventListener("click", e => { if (e.target.closest('[role="tab"]')) setTimeout(syncTabIndex, 0); });
+new MutationObserver(syncTabIndex).observe(document.getElementById("main"), { childList: true, subtree: true });
+
 /* тема */
 const THEMES = [["system", "системная"], ["light", "светлая"], ["dark", "тёмная"]];
 let themeIdx = 0;
@@ -1912,6 +2016,7 @@ renderGap();
 renderVacancies();
 renderHistory();
 route();
+syncTabIndex();
 </script>
 </body>
 </html>
