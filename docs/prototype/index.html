@@ -985,6 +985,10 @@ const prepared = {
   "137863250": { letters: [SN], tips: [SN] }
 };
 
+// Соответствие вакансии резюме: [навыков есть в резюме, навыков сравнено, главные пробелы].
+// Навыки словаря найдены в описании и key_skills кодом analyzer.py, статусы — из сравнения с резюме в отчёте.
+const MATCH = {"137596994":[12,21,["API","Банковский домен","REST API","JSON"]],"137493556":[1,3,["Excel","Power BI"]],"137704093":[6,14,["API","REST API","JSON","HTTP"]],"137480923":[9,12,["API","REST API","JSON"]],"137675054":[9,22,["API","Банковский домен","REST API","Swagger"]],"135767305":[6,11,["REST API","CRM","MS Office","Excel"]],"134218946":[9,13,["API","Банковский домен","Swagger","MS Office"]],"137587921":[13,24,["API","REST API","Swagger","CRM"]],"137173591":[7,12,["API","Банковский домен","JSON","Postman"]],"137354708":[9,16,["API","REST API","JSON","HTTP"]],"136964170":[14,23,["API","Банковский домен","REST API","JSON"]],"137445278":[12,18,["Банковский домен","Swagger","Postman","MS Office"]],"130247647":[10,19,["API","REST API","Swagger","HTTP"]],"137474247":[7,12,["API","Банковский домен","REST API","SOAP"]],"137140562":[8,15,["API","Swagger","CRM","Acceptance Criteria"]],"137630965":[12,18,["Acceptance Criteria","Miro","Draw.io","Kanban"]],"130354328":[10,21,["API","REST API","JSON","HTTP"]],"136489987":[3,4,["Банковский домен"]],"137595800":[4,8,["API","CRM","MS Office","Oracle"]],"137594821":[8,13,["API","Банковский домен","REST API","Miro"]],"137582706":[5,7,["API","JSON"]],"135739512":[15,19,["API","Банковский домен","REST API","CRM"]],"134182338":[8,10,["Miro","Draw.io"]],"137490467":[12,23,["API","Банковский домен","REST API","Swagger"]],"137394254":[12,18,["API","Банковский домен","REST API","Swagger"]],"137471670":[15,30,["API","Банковский домен","REST API","Swagger"]],"136902181":[9,9,[]],"131265449":[3,6,["CRM","ERP","Power BI"]],"136962315":[3,3,[]],"137219721":[8,16,["API","REST API","HTTP","Acceptance Criteria"]],"137328327":[6,9,["API","Банковский домен","HTTP"]],"137488564":[10,14,["Банковский домен","Kanban","Описание бизнес-процессов","BRD"]],"129528749":[15,20,["Банковский домен","Acceptance Criteria","Kanban","BRD"]],"135464862":[6,7,["CRM"]],"133960724":[1,3,["Банковский домен","Excel"]],"137343552":[10,12,["Draw.io","BRD"]],"136089655":[10,13,["API","Банковский домен","ГОСТ 34"]],"137365960":[8,12,["API","Банковский домен","Acceptance Criteria","Miro"]],"137252645":[10,16,["API","Банковский домен","REST API","SOAP"]],"137493635":[5,5,[]],"137217122":[3,9,["API","REST API","JSON","HTTP"]],"137293546":[9,13,["MS Office","Excel","Описание бизнес-процессов","Разработка пользовательской документации"]],"136299408":[10,16,["API","Банковский домен","Swagger","Postman"]],"137291015":[6,10,["Банковский домен","CRM","Excel","Power BI"]],"137190645":[7,11,["MS Office","Excel","Git","ГОСТ 34"]],"125440730":[6,11,["Банковский домен","CRM","Acceptance Criteria","Miro"]],"137175853":[5,6,["Kanban"]],"134544001":[0,1,["MS Office"]],"137747917":[16,25,["API","CRM","Acceptance Criteria","Miro"]],"137782917":[6,9,["Банковский домен","HTTP","CRM"]],"136640582":[9,12,["Банковский домен","HTTP","Oracle"]],"137733315":[8,13,["API","Банковский домен","REST API","JSON"]],"137973547":[4,9,["API","REST API","Swagger","Acceptance Criteria"]],"137828745":[16,20,["API","Банковский домен","REST API","CRM"]],"137899254":[18,25,["Банковский домен","REST API","Postman","SOAP"]],"137863496":[7,16,["API","REST API","JSON","Swagger"]],"137846748":[14,27,["API","REST API","Swagger","JSON"]],"137863250":[17,29,["API","REST API","Swagger","JSON"]],"136922721":[8,10,["API","Kanban"]]};
+
 /* ===== Демо-контент карточки (Кредитон) ===== */
 const DESC = {
   intro: "Компания развивает онлайн-платформу выдачи займов под залог автомобиля: автоматизация бизнес-процессов, клиентский путь, новые цифровые продукты.",
@@ -1200,9 +1204,7 @@ function renderVacancy(id) {
   if (!v) { el.innerHTML = `<a class="back" href="#vacancies">Вакансии</a><p class="empty">Вакансия не найдена в выгрузках. Вернитесь к списку и выберите другую.</p>`; return; }
   if (card.id !== id) card = { id, tab: "desc", letterV: null, tipsV: null };
   const rich = id === RICH_ID;
-  const okN = rich ? BASIS.filter(b => b[0] === "ok").length : 5;
-  const totalN = rich ? BASIS.length + UNCONFIRMED.length : 8;
-  const gaps = rich ? ["Кредитование", "REST API", "Скоринг и антифрод"] : ["API", "Банковский домен", "Kafka"];
+  const [okN, totalN, gaps] = MATCH[id] || [0, 0, []];
   const cells = Array.from({ length: totalN }, (_, i) => `<i class="${i < okN ? "ok" : "gap"}"></i>`).join("");
   el.innerHTML = `
     <a class="back" href="#vacancies">← Вакансии</a>
@@ -1213,11 +1215,14 @@ function renderVacancy(id) {
       </div>
       <a class="btn" href="https://hh.ru/vacancy/${v.id}" target="_blank" rel="noopener">Открыть на hh</a>
     </div>
-    ${!cv.present ? `<div class="match"><div>Соответствие не посчитано: резюме не найдено.</div><div><a href="#resume">Добавить резюме</a></div></div>` : `<div class="match">
-      <div><div class="v">${okN} <small>из ${totalN}</small></div><div class="small muted">требований подтверждены резюме</div></div>
+    ${!cv.present ? `<div class="match"><div>Соответствие не посчитано: резюме не найдено.</div><div><a href="#resume">Добавить резюме</a></div></div>`
+      : !totalN ? `<div class="match"><div>Соответствие не посчитано: в описании нет навыков из словаря.</div><div class="small muted">Пополните словарь в «Настройки → Словарь навыков» и обновите анализ.</div></div>`
+      : `<div class="match">
+      <div><div class="v">${okN} <small>из ${totalN}</small></div><div class="small muted">навыков вакансии есть в резюме</div></div>
       <div>
         <div class="cells" aria-hidden="true">${cells}</div>
-        <div class="gaps-list"><span class="muted small">Пробелы:</span>${gaps.map(g => `<span class="chip">${esc(g)}</span>`).join("")}</div>
+        <div class="gaps-list">${gaps.length ? `<span class="muted small">Пробелы:</span>${gaps.map(g => `<span class="chip">${esc(g)}</span>`).join("")}${totalN - okN > gaps.length ? `<span class="muted small">и ещё ${totalN - okN - gaps.length}</span>` : ""}` : '<span class="muted small">Пробелов по словарю нет</span>'}</div>
+        <p class="small muted" style="margin-top:6px">Навыки словаря из описания и key_skills, статусы — из сравнения с резюме${cv.stale ? " (устарело)" : ""}.</p>
       </div>
     </div>`}
     <div class="tabs" role="tablist" aria-label="Материалы по вакансии">
