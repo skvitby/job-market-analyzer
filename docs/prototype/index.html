@@ -339,6 +339,23 @@ select, .input { border: 1px solid var(--line-strong); background: var(--surface
 .con-state { font-size: 14px; font-weight: 600; }
 .console[data-state="done"] .con-state { color: var(--cover); }
 .console[data-state="error"] .con-state { color: var(--error); }
+.console[data-state="warn"] .con-state { color: var(--gap); }
+.console[data-state="warn"] .con-prog i { background: var(--gap); }
+.console[data-state="warn"] .con-msg b { color: var(--gap); }
+.con-log .warn { color: var(--gap); }
+/* резюме */
+.cv-file { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 8px 20px; margin: 0 0 18px; font-size: 14px; max-width: 640px; }
+.cv-file dt { color: var(--muted); }
+.cv-file dd { margin: 0; }
+.cv-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+.file-pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.file-pick:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.sec-ok { color: var(--cover); font-weight: 500; white-space: nowrap; }
+.sec-no { color: var(--gap); font-weight: 500; white-space: nowrap; }
+.cv-line { font-size: 14px; color: var(--ink-2); margin: -8px 0 16px; }
+.empty-block { border: 1px dashed var(--line-strong); border-radius: 8px; padding: 24px; max-width: 640px; }
+.empty-block p { margin-bottom: 14px; color: var(--ink-2); }
+@media (max-width: 760px) { .cv-file { grid-template-columns: minmax(0, 1fr); gap: 0; } .cv-file dd { margin-bottom: 8px; } }
 .con-log {
   margin: 0; padding: 4px 40px 14px; max-height: 168px; overflow-y: auto;
   font: 13px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; color: var(--ink-2);
@@ -448,7 +465,7 @@ tr.added td { background: var(--cover-soft); }
   .bars .st .txt { display: none; }
 }
 @media (max-width: 760px) {
-  .app { grid-template-columns: minmax(0, 1fr); }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; } /* короткие экраны не растягивают шапку */
   .side { position: sticky; top: 0; z-index: 15; height: auto; flex-direction: column; padding: 10px 16px 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .brand { padding: 0 0 6px; display: flex; gap: 10px; align-items: baseline; }
   .nav { flex-direction: row; overflow-x: auto; gap: 0; margin: 0 -16px; padding: 0 10px; }
@@ -494,12 +511,14 @@ tr.added td { background: var(--cover-soft); }
       <a href="#overview" data-nav="overview">Обзор рынка</a>
       <a href="#gap" data-nav="gap">Gap-анализ</a>
       <a href="#vacancies" data-nav="vacancies">Вакансии</a>
+      <a href="#resume" data-nav="resume">Резюме</a>
       <a href="#settings" data-nav="settings">Настройки</a>
       <span class="soon" aria-disabled="true">Тренды <small>скоро</small></span>
     </nav>
     <div class="side-foot">
       <div>Данные на 30.09.2026, 23:56</div>
       <label><input type="checkbox" id="failMode"> Демо: команды завершаются ошибкой</label>
+      <label><input type="checkbox" id="noCvMode"> Демо: резюме не найдено</label>
       <button class="theme-btn" id="themeBtn" type="button">Тема: системная</button>
     </div>
   </aside>
@@ -565,11 +584,12 @@ tr.added td { background: var(--cover-soft); }
       <div class="kpis">
         <div class="kpi"><div class="v">59</div><div class="k">вакансий<span>все с полным описанием</span></div></div>
         <div class="kpi"><div class="v">22 <small>дня</small></div><div class="k">период публикации<span>09.09 – 30.09.2026</span></div></div>
-        <div class="kpi"><div class="v">60<small>%</small></div><div class="k">спроса закрывает резюме<span>с учётом частоты навыков</span></div></div>
-        <div class="kpi"><div class="v">49</div><div class="k">пробелов<span>из 89 сравнённых навыков</span></div></div>
+        <div class="kpi" id="kpiCover"></div>
+        <div class="kpi" id="kpiGaps"></div>
       </div>
 
-      <div class="fabric-wrap">
+      <div class="callout warn" id="fabricNoCv" hidden>Сравнение с резюме не выполнено: файл <code>profile/my_cv.md</code> не найден. <a href="#resume">Добавить резюме</a></div>
+      <div class="fabric-wrap" id="fabricWrap">
         <div class="fabric-title">
           <h2>Чем рынок покрыт резюме</h2>
           <p>Каждая полоска — навык, её ширина — в скольких вакансиях он встречается. Слева то, что резюме подтверждает, справа пробелы.</p>
@@ -603,6 +623,12 @@ tr.added td { background: var(--cover-soft); }
         </div>
         <button class="btn primary" data-open-analyze type="button">Обновить анализ</button>
       </div>
+      <div id="cvNotice"></div>
+      <div class="empty-block" id="gapEmpty" hidden>
+        <p>Сравнивать не с чем: резюме не найдено. Добавьте его — и после анализа здесь появятся статусы навыков с цитатами из резюме.</p>
+        <a class="btn primary" href="#resume">Добавить резюме</a>
+      </div>
+      <div id="gapBody">
       <div class="toolbar">
         <div class="group" role="group" aria-label="Статус" id="gapFilter">
           <button class="pill" aria-pressed="true" data-f="all" type="button">Все <b>89</b></button>
@@ -630,6 +656,7 @@ tr.added td { background: var(--cover-soft); }
             <tbody></tbody>
           </table>
         </div>
+      </div>
       </div>
     </section>
 
@@ -715,6 +742,9 @@ tr.added td { background: var(--cover-soft); }
 
     <!-- 4. Карточка вакансии -->
     <section class="screen" id="s-vacancy" aria-labelledby="h-v" hidden></section>
+
+    <!-- Резюме -->
+    <section class="screen" id="s-resume" aria-labelledby="h-cv" hidden></section>
 
     <!-- 5. Настройки -->
     <section class="screen" id="s-settings" aria-labelledby="h-set" hidden>
@@ -1053,10 +1083,13 @@ function renderFabric() {
   });
 }
 
-function renderBars(mode) {
+let rankMode = "top";
+function renderBars(mode = rankMode) {
+  rankMode = mode;
   let rows;
   if (mode === "llm") rows = GAP.filter(g => g[3]).map(g => [g[0], Math.round(g[1] * 59 / 100), g[2], 1]);
   else rows = (mode === "top" ? SKILLS.slice(0, 20) : SKILLS).map(([n, c]) => [n, c, gapByName[n] ? gapByName[n][2] : "none", 0]);
+  if (!cv.present) rows = rows.map(r => [r[0], r[1], "none", r[3]]); // без резюме статусов нет
   const head = `<div class="row hrow"><span>Навык</span><span>Доля вакансий</span><span class="pct" style="font-weight:400">%</span><span class="cnt">Вакансий</span><span class="st">В резюме</span></div>`;
   $("#bars").innerHTML = head + rows.map(([n, c, st, llm]) => {
     const p = Math.round(c / 59 * 100);
@@ -1068,7 +1101,8 @@ function renderBars(mode) {
       <span class="st ${st === "gap" ? "gap" : ""}"><i class="sw ${st}" aria-hidden="true"></i> <span class="txt">${STATUS_TEXT[st]}</span><span class="sr">${STATUS_TEXT[st]}</span></span>
     </div>`;
   }).join("");
-  $("#barsNote").textContent = mode === "llm"
+  $("#barsNote").textContent = !cv.present ? "Резюме не найдено — статусы навыков не показаны. Цвет полосы появится после анализа с резюме."
+    : mode === "llm"
     ? "* Навыки вне словаря, найденные моделью claude-haiku-4-5 в двух и более вакансиях. Это интерпретация модели, а не точный поиск."
     : mode === "all"
       ? "Навыки с долей меньше 5% с резюме не сравниваются — они отмечены серым."
@@ -1135,13 +1169,13 @@ function renderVacancy(id) {
       </div>
       <a class="btn" href="https://hh.ru/vacancy/${v.id}" target="_blank" rel="noopener">Открыть на hh</a>
     </div>
-    <div class="match">
+    ${!cv.present ? `<div class="match"><div>Соответствие не посчитано: резюме не найдено.</div><div><a href="#resume">Добавить резюме</a></div></div>` : `<div class="match">
       <div><div class="v">${okN} <small>из ${totalN}</small></div><div class="small muted">требований подтверждены резюме</div></div>
       <div>
         <div class="cells" aria-hidden="true">${cells}</div>
         <div class="gaps-list"><span class="muted small">Пробелы:</span>${gaps.map(g => `<span class="chip">${esc(g)}</span>`).join("")}</div>
       </div>
-    </div>
+    </div>`}
     <div class="tabs" role="tablist" aria-label="Материалы по вакансии">
       <button class="tab" role="tab" data-ctab="desc" type="button">Описание</button>
       <button class="tab" role="tab" data-ctab="letter" type="button">Письмо${hasLetters(id) ? ` <b>v${prepared[id].letters.length}</b>` : ""}</button>
@@ -1238,7 +1272,14 @@ function startCommand(cmd, id = card.id || "") {
   const n = cmd === "cover-letter" ? (p ? p.letters.length + 1 : 1) : 1;
   const sub = s => s.replace("{id}", id).replace("{n}", n);
   const steps = def.steps.map(sub);
-  const failAt = Math.ceil(steps.length * 0.6);
+  // Без резюме — как в CLI: письмо и советы падают сразу, анализ проходит, но без сравнения
+  const cvMissing = !cv.present && cmd !== "fetch";
+  const errText = cvMissing && cmd !== "analyze"
+    ? [`Не найдено резюме profile/my_cv.md — оно нужно для ${cmd === "cover-letter" ? "письма" : "советов"}.`, "Добавьте резюме на экране «Резюме» и запустите команду ещё раз."]
+    : def.error;
+  const warnText = cvMissing && cmd === "analyze" ? "Файл резюме profile/my_cv.md не найден — сравнение пропущено" : "";
+  if (warnText) steps[steps.indexOf("Сравнение с резюме: 89 навыков")] = "!" + warnText;
+  const failAt = cvMissing && cmd !== "analyze" ? 1 : fail ? Math.ceil(steps.length * 0.6) : -1;
   run = { cmd, i: 0, cancelled: false };
   con.dataset.state = "running"; con.classList.add("open");
   $("#conCmd").textContent = cmd; $("#conTitle").textContent = def.title;
@@ -1252,21 +1293,27 @@ function startCommand(cmd, id = card.id || "") {
   const tick = () => {
     if (!run || run.cancelled) return;
     const i = run.i;
-    if (fail && i === failAt) {
-      $("#conLog").innerHTML += `<span class="err">Ошибка: ${esc(def.error[0])}</span>\n`;
+    if (i === failAt) {
+      $("#conLog").innerHTML += `<span class="err">Ошибка: ${esc(errText[0])}</span>\n`;
       con.dataset.state = "error"; $("#conState").textContent = "Ошибка";
-      $("#conMsg").innerHTML = `<b>${esc(def.error[0])}</b> ${esc(def.error[1])}`;
+      $("#conMsg").innerHTML = `<b>${esc(errText[0])}</b> ${esc(errText[1])}`;
       $("#conAction").textContent = "Повторить"; run = null; setRunButtons(false); return;
     }
     if (i >= steps.length) {
       const sec = Math.max(1, Math.round((Date.now() - t0) / 1000));
-      con.dataset.state = "done"; $("#conState").textContent = `Готово за ${sec} с`;
-      $("#conLog").innerHTML += `<span class="ok">${esc(sub(def.done))}</span>\n`;
-      $("#conMsg").textContent = sub(def.done);
+      if (warnText) {
+        con.dataset.state = "warn"; $("#conState").textContent = `Готово с предупреждением, ${sec} с`;
+        $("#conMsg").innerHTML = `<b>Анализ обновлён без сравнения с резюме.</b> Файл profile/my_cv.md не найден — добавьте резюме и обновите анализ.`;
+      } else {
+        con.dataset.state = "done"; $("#conState").textContent = `Готово за ${sec} с`;
+        $("#conLog").innerHTML += `<span class="ok">${esc(sub(def.done))}</span>\n`;
+        $("#conMsg").textContent = sub(def.done);
+      }
       $("#conAction").textContent = "Закрыть"; run = null; setRunButtons(false);
       onCommandDone(cmd, id); return;
     }
-    $("#conLog").innerHTML += `${new Date().toLocaleTimeString("ru-RU")}  ${esc(steps[i])}\n`;
+    const st = steps[i], isWarn = st.startsWith("!");
+    $("#conLog").innerHTML += `${new Date().toLocaleTimeString("ru-RU")}  ${isWarn ? `<span class="warn">Предупреждение: ${esc(st.slice(1))}</span>` : esc(st)}\n`;
     $("#conLog").scrollTop = 1e6;
     const pct = Math.round((i + 1) / steps.length * 100);
     $("#conBar").style.width = pct + "%"; $("#conPct").textContent = pct + "%";
@@ -1276,6 +1323,7 @@ function startCommand(cmd, id = card.id || "") {
   lastRun = { cmd, id };
 }
 function onCommandDone(cmd, id) {
+  if (cmd === "analyze" && cv.present) { cv.stale = false; cv.comparedAt = nowStr(); applyCv(); }
   if (cmd === "cover-letter" && id) {
     prepared[id] = prepared[id] || { letters: [], tips: [] };
     prepared[id].letters.push(prepared[id].letters.length + 1);
@@ -1515,8 +1563,95 @@ function initSettings() {
   clearDirty();
 }
 
+/* ===== Резюме: profile/my_cv.md ===== */
+// В прототип попадают только метаданные и структура файла — текст резюме не встраивается
+const nowStr = () => new Date().toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const cv = {
+  present: true, file: "profile/my_cv.md", updated: "01.10.2026, 01:42", size: "13,3 КБ", lines: 157,
+  comparedAt: "01.10.2026, 00:41", stale: true, // резюме менялось после последнего сравнения с рынком
+  sections: { skills: "Навыки", about: "Обо мне", exp: "Опыт работы", jobs: 3 }
+};
+function renderResume() {
+  const el = $("#s-resume");
+  const head = `<div class="head"><div><h1 id="h-cv">Резюме</h1>
+    <p>По этому файлу строятся сравнение с рынком, письма и советы. Файл лежит только у вас на диске и не попадает в git.</p></div></div>`;
+  const pick = (label, primary) => `<label class="btn ${primary ? "primary" : ""} file-pick">${label}<input type="file" accept=".md,.markdown,text/markdown" data-cvfile></label>`;
+  if (!cv.present) {
+    el.innerHTML = head + `<div class="empty-block">
+      <p>Резюме не найдено. Без него не работают сравнение с рынком, письма и советы. Сохраните резюме в Markdown как <code>profile/my_cv.md</code> или выберите файл.</p>
+      ${pick("Выбрать файл", true)}<p class="field-error" id="cvErr" role="alert" style="margin:10px 0 0"></p></div>`;
+    return;
+  }
+  const sec = cv.sections;
+  const rows = [
+    ["«Навыки»", sec.skills, "Навыки рынка, найденные здесь, получают статус «В Навыках». Советы проверяют, нет ли термина в этом разделе."],
+    ["«О себе»", sec.about, "Сюда cv-tips предлагает правки раздела «О себе». Подходит заголовок «О себе» или «Обо мне»."],
+    ["Опыт работы", sec.exp && `${sec.exp}${sec.jobs ? `, мест работы: ${sec.jobs}` : ""}`, "Навыки, найденные только здесь, получают статус «Только в опыте» — их стоит перенести в «Навыки»."]
+  ];
+  el.innerHTML = head + (cv.stale ? `<div class="callout warn">Резюме изменилось после последнего сравнения с рынком (${cv.comparedAt}). Статусы навыков и покрытие могут быть неактуальны.
+      <div style="margin-top:8px"><button class="btn" type="button" data-open-analyze>Обновить анализ</button></div></div>` : "") + `
+    <dl class="cv-file">
+      <dt>Файл</dt><dd><code>${cv.file}</code></dd>
+      <dt>Изменён</dt><dd>${cv.updated}</dd>
+      <dt>Объём</dt><dd>${cv.size}, ${cv.lines} строк</dd>
+      <dt>Последнее сравнение с рынком</dt><dd>${cv.comparedAt}${cv.stale ? ' <span class="sec-no">устарело</span>' : ""}</dd>
+    </dl>
+    <div class="cv-actions">
+      <button class="btn" type="button" id="cvOpen">Открыть в редакторе</button>
+      ${pick("Заменить файл", false)}
+    </div>
+    <p class="field-error" id="cvErr" role="alert"></p>
+    <h2 class="section-gap" style="margin-bottom:6px">Разделы, которые читает инструмент</h2>
+    <p class="lead">Разделы ищутся по заголовкам Markdown (<code>#</code>, <code>##</code>). Если раздела нет, связанные проверки пропускаются.</p>
+    <div class="tbl-wrap"><table class="stack">
+      <thead><tr><th>Раздел</th><th>В резюме</th><th>Для чего нужен</th></tr></thead>
+      <tbody>${rows.map(([n, found, why]) => `<tr><td><b style="font-weight:500">${n}</b></td>
+        <td data-l="В резюме">${found ? `<span class="sec-ok">Найден</span> <span class="muted small">${esc(found)}</span>` : '<span class="sec-no">Не найден</span>'}</td>
+        <td class="small" style="color:var(--ink-2)">${why}</td></tr>`).join("")}</tbody>
+    </table></div>`;
+}
+// Выбранный файл читается только в браузере: считаем строки и ищем заголовки разделов
+function loadCvFile(file) {
+  const err = $("#cvErr");
+  if (!/\.(md|markdown)$/i.test(file.name)) { if (err) err.textContent = `Нужен файл Markdown (.md). Выбран: ${file.name}`; return; }
+  const r = new FileReader();
+  r.onload = () => {
+    const text = String(r.result), heads = text.match(/^#{1,6}\s*.+$/gm) || [];
+    const find = re => { const h = heads.find(x => re.test(x)); return h ? h.replace(/^#+\s*/, "").trim() : ""; };
+    const exp = find(/^#+\s*Опыт/i);
+    Object.assign(cv, {
+      present: true, file: "profile/my_cv.md", updated: nowStr(), stale: true,
+      size: (file.size / 1024).toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + " КБ", lines: text.split(/\r?\n/).length,
+      sections: { skills: find(/^#+\s*Навыки\s*$/i), about: find(/^#+\s*(О себе|Обо мне)/i), exp, jobs: 0 }
+    });
+    $("#noCvMode").checked = false;
+    applyCv(); toast(`Резюме заменено файлом ${file.name}. Обновите анализ, чтобы пересчитать сравнение.`);
+  };
+  r.onerror = () => { if (err) err.textContent = "Не удалось прочитать файл. Проверьте, что он не открыт с блокировкой, и выберите его ещё раз."; };
+  r.readAsText(file, "utf-8");
+}
+function renderOverviewCv() {
+  $("#kpiCover").innerHTML = cv.present
+    ? `<div class="v">60<small>%</small></div><div class="k">спроса закрывает резюме<span>${cv.stale ? `сравнение от ${cv.comparedAt.slice(0, 5)}, резюме с тех пор менялось` : "с учётом частоты навыков"}</span></div>`
+    : `<div class="v">—</div><div class="k">спроса закрывает резюме<span>резюме не найдено</span></div>`;
+  $("#kpiGaps").innerHTML = cv.present
+    ? `<div class="v">49</div><div class="k">пробелов<span>из 89 сравнённых навыков</span></div>`
+    : `<div class="v">—</div><div class="k">пробелов<span>не с чем сравнить</span></div>`;
+  $("#fabricWrap").hidden = !cv.present; $("#fabricNoCv").hidden = cv.present;
+}
+function renderGapCv() {
+  $("#gapBody").hidden = !cv.present; $("#gapEmpty").hidden = cv.present;
+  $("#cvNotice").innerHTML = !cv.present ? "" : cv.stale
+    ? `<div class="callout warn">Резюме изменилось ${cv.updated} — после этого сравнения (${cv.comparedAt}). Обновите анализ, чтобы статусы были актуальны. <a href="#resume">О резюме</a></div>`
+    : `<p class="cv-line">Сравнение с <a href="#resume">резюме</a> от ${cv.comparedAt}.</p>`;
+}
+function applyCv() {
+  renderResume(); renderOverviewCv(); renderBars(); renderGapCv();
+  if (card.id) renderVacancy(card.id);
+}
+
 /* ===== Навигация ===== */
-const SCREENS = ["overview", "gap", "vacancies", "vacancy", "settings"];
+const SCREENS = ["overview", "gap", "vacancies", "vacancy", "resume", "settings"];
 function route() {
   const h = location.hash.slice(1) || "overview";
   const [name, arg] = h.split("/");
@@ -1566,7 +1701,13 @@ $("#fetchToggle").addEventListener("click", () => togglePanel($("#fetchPanel")))
 $("#analyzeToggle").addEventListener("click", () => togglePanel($("#analyzePanel")));
 $$("[data-close-panel]").forEach(b => b.addEventListener("click", () => { const f = b.closest("form"); togglePanel(f, false); $(`[aria-controls="${f.id}"]`).focus(); }));
 $("#noLlm").addEventListener("change", e => { const r = $("#llmRefresh"); r.disabled = e.target.checked; if (e.target.checked) r.checked = false; updatePreview($("#analyzePanel")); });
-$$("[data-open-analyze]").forEach(b => b.addEventListener("click", () => { location.hash = "#overview"; setTimeout(() => togglePanel($("#analyzePanel"), true), 0); }));
+document.addEventListener("click", e => {
+  if (!e.target.closest("[data-open-analyze]")) return;
+  location.hash = "#overview"; setTimeout(() => togglePanel($("#analyzePanel"), true), 0);
+});
+document.addEventListener("change", e => { if (e.target.matches("[data-cvfile]") && e.target.files[0]) loadCvFile(e.target.files[0]); });
+document.addEventListener("click", e => { if (e.target.id === "cvOpen") toast("profile/my_cv.md откроется в программе для .md по умолчанию, например в Obsidian"); });
+$("#noCvMode").addEventListener("change", e => { cv.present = !e.target.checked; applyCv(); });
 
 /* настройки */
 const sform = $("#settingsForm");
@@ -1633,6 +1774,7 @@ $("#themeBtn").addEventListener("click", () => { themeIdx = (themeIdx + 1) % THE
 
 applyTheme();
 initSettings();
+applyCv();
 renderFabric();
 renderBars("top");
 renderGap();
