@@ -154,6 +154,8 @@ a.btn { text-decoration: none; }
 .pill:hover { border-color: var(--line-strong); color: var(--ink); }
 .pill[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .pill[aria-pressed="true"] b { color: inherit; opacity: .75; }
+.pill:disabled { opacity: .45; cursor: default; }
+.pill:disabled:hover { border-color: var(--line); color: var(--ink-2); }
 .search {
   border: 1px solid var(--line); background: var(--surface); border-radius: 6px;
   padding: 6px 10px; min-width: 260px;
@@ -731,6 +733,7 @@ tr.added td { background: var(--cover-soft); }
         </div>
         <label class="sr" for="vacSearch">Найти вакансию</label>
         <input class="search" id="vacSearch" type="search" placeholder="Название или работодатель">
+        <span class="muted small" id="vacFound" aria-live="polite"></span>
       </div>
       <div class="tbl-wrap">
         <table class="stack vac" id="vacTable">
@@ -1161,8 +1164,15 @@ let vacFilter = "all";
 const VAC_FILTERS = { all: () => true, new: v => NEW_IDS.has(v.id), letter: v => hasLetters(v.id), salary: v => !!v.salary };
 function renderVacancies() {
   const q = $("#vacSearch").value.trim().toLowerCase();
-  $$("#vacFilter [data-f]").forEach(b => b.querySelector("b").textContent = VACANCIES.filter(VAC_FILTERS[b.dataset.f]).length);
-  const list = VACANCIES.filter(v => VAC_FILTERS[vacFilter](v) && (!q || (v.name + " " + v.employer).toLowerCase().includes(q)));
+  // Счётчик кнопки = сколько строк покажет её нажатие: строка поиска + условие кнопки
+  const found = VACANCIES.filter(v => !q || (v.name + " " + v.employer).toLowerCase().includes(q));
+  $$("#vacFilter [data-f]").forEach(b => {
+    const n = found.filter(VAC_FILTERS[b.dataset.f]).length;
+    b.querySelector("b").textContent = n;
+    b.disabled = n === 0 && b.dataset.f !== vacFilter;
+  });
+  const list = found.filter(VAC_FILTERS[vacFilter]);
+  $("#vacFound").textContent = q || vacFilter !== "all" ? `Найдено ${list.length} из ${VACANCIES.length}` : "";
   $("#vacTable tbody").innerHTML = list.length ? list.map(v => {
     return `<tr>
       <td><a href="#vacancy/${v.id}">${esc(v.name)}</a>${NEW_IDS.has(v.id) ? '<span class="tag-new">новая</span>' : ""}</td>
