@@ -22,6 +22,7 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "currency": None,
         "min_salary": None,
         "exclude_words": [],
+        "professional_roles": [],
         "initial_period_days": 14,
         "request_delay_sec": 3.0,
     },
@@ -77,3 +78,21 @@ def load_preferences(path: Optional[Path] = None) -> dict[str, Any]:
         raise ValueError(f"Файл {path} должен содержать JSON-объект верхнего уровня")
 
     return _merge(DEFAULT_PREFERENCES, user_prefs)
+
+
+def professional_role_ids(settings: dict[str, Any]) -> list[str]:
+    """Возвращает ID ролей HH из professional_roles (AC 1.1); пустой список — без фильтра.
+
+    Элемент — объект {"id", "name"}, как в regions, или просто ID.
+    ID возвращаются строками, как их отдаёт HH API.
+    """
+    roles = settings.get("professional_roles") or []
+    if not isinstance(roles, list):
+        roles = [roles]
+    ids = []
+    for role in roles:
+        role_id = role.get("id") if isinstance(role, dict) else role
+        if role_id is None or not str(role_id).strip().isdigit():
+            raise ValueError(f"Некорректная роль в professional_roles: {role!r} — нужен числовой ID роли HH")
+        ids.append(str(role_id).strip())
+    return ids

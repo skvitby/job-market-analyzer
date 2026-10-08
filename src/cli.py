@@ -46,6 +46,7 @@ def fetch(
     employment: Optional[list[str]] = typer.Option(None, "--employment", help="full / part / project (можно несколько параметров: --employment full --employment project)"),
     schedule: Optional[list[str]] = typer.Option(None, "--schedule", help="office / hybrid / remote (можно несколько параметров: --schedule remote --schedule hybrid)"),
     min_salary: Optional[int] = typer.Option(None, "--min-salary", help="Минимальная зарплата (валюта — currency из профиля)"),
+    professional_role: Optional[list[str]] = typer.Option(None, "--professional-role", help="ID роли HH вместо professional_roles из профиля: 150 — Бизнес-аналитик, 148 — Системный аналитик (можно несколько параметров: --professional-role 150 --professional-role 148); none — без фильтра по ролям"),
     no_details: bool = typer.Option(False, "--no-details", help="Не загружать полные описания вакансий в data/details/"),
 ) -> None:
     """Выгружает вакансии с HH.ru в data/raw_vacancies_{timestamp}.json (US-02).
@@ -72,6 +73,16 @@ def fetch(
         overrides["schedule"] = schedule
     if min_salary is not None:
         overrides["min_salary"] = min_salary
+    if professional_role:
+        values = [v.strip() for v in professional_role]
+        if [v.lower() for v in values] == ["none"]:
+            overrides["professional_roles"] = []
+        elif all(v.isdigit() for v in values):
+            overrides["professional_roles"] = values
+        else:
+            typer.secho("Ошибка: --professional-role — числовой ID роли HH (например, 150) или none "
+                        "(без фильтра; указывается один раз, без других ролей)", fg=typer.colors.RED, err=True)
+            raise typer.Exit(code=1)
 
     try:
         path = fetch_vacancies(overrides)

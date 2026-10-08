@@ -20,7 +20,7 @@ from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 
-from src.config import PROJECT_ROOT, load_preferences
+from src.config import PROJECT_ROOT, load_preferences, professional_role_ids
 from src.text_utils import VACANCY, count, duration
 
 logger = logging.getLogger(__name__)
@@ -72,7 +72,8 @@ def build_search_params(settings: dict[str, Any], period_days: Optional[int] = N
     """Собирает параметры поиска HH API из search_settings (AC 2.1, 2.2, 2.5, 2.6).
 
     Все роли объединяются в один запрос через OR, поиск идёт по названию вакансии,
-    слова из exclude_words исключаются через NOT. Глубина поиска задаётся либо
+    слова из exclude_words исключаются через NOT. Роли HH из professional_roles
+    сужают поиск: нужно совпадение и названия, и роли (AC 2.1). Глубина поиска задаётся либо
     period_days (за сколько дней), либо date_from (начиная с какого момента).
     Возвращается список пар, так как параметры area, experience и work_format
     передаются несколько раз.
@@ -88,6 +89,7 @@ def build_search_params(settings: dict[str, Any], period_days: Optional[int] = N
 
     params: list[tuple[str, Any]] = [("text", text), ("search_field", "name")]
     params += [("area", region["id"]) for region in _as_list(settings.get("regions"))]
+    params += [("professional_role", role_id) for role_id in professional_role_ids(settings)]
 
     experience = _as_list(settings.get("experience_level"))
     unknown = [v for v in experience if v not in EXPERIENCE_VALUES]
@@ -310,6 +312,7 @@ def to_record(item: dict[str, Any]) -> dict[str, Any]:
         "responsibility": _clean(snippet.get("responsibility")),
         "alternate_url": item.get("alternate_url"),
         "published_at": item.get("published_at"),
+        "professional_roles": [str(role["id"]) for role in item.get("professional_roles") or []],
     }
 
 
