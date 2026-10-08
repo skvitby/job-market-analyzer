@@ -4,7 +4,12 @@
       "Бизнес-аналитик", "Системный аналитик", "Business Analyst", "Systems Analyst",
       "System Analyst", "IT-аналитик", "IT Analyst",
       "Аналитик требований", "Requirements Analyst",
-      "Функциональный аналитик", "Functional Analyst"
+      "Функциональный аналитик", "Functional Analyst",
+      "Бизнес-аналитик*", "Системный аналитик*", "Business Analyst*", "Systems Analyst*",
+      "System Analyst*", "IT-аналитик*", "IT Analyst*",
+      "Аналитик требований*", "Requirements Analyst*",
+      "Функциональный аналитик*", "Functional Analyst*",
+      "Fullstack analyst", "Full-stack Analyst", "Фулстэк аналитик", "Фулстек аналитик"
     ],
     "regions": [{"id": 113, "name": "Россия"}, {"id": 16, "name": "Беларусь"}],
     "experience_level": ["between1And3", "between3And6", "moreThan6"],
@@ -12,10 +17,40 @@
     "schedule": ["remote", "office", "hybrid"],
     "currency": "RUR",
     "min_salary": null,
-    "exclude_words": ["1С"],
-    "professional_roles": [{"id": 150, "name": "Бизнес-аналитик"}, {"id": 148, "name": "Системный аналитик"}, {"id": 10, "name": "Аналитик"}],
+    "exclude_words": ["1С", "1C"],
+    "professional_roles": [
+      {"id": 148, "name": "Системный аналитик", "mode": "role"},
+      {"id": 150, "name": "Бизнес-аналитик", "mode": "check"},
+      {"id": 10, "name": "Аналитик", "mode": "title"}
+    ],
+    "exclude_title_words": [
+      "Bitrix", "Битрикс", "бухгалтер", "разработчик", "Database administrator", "продаж",
+      "Fraud", "маркетолог", "ценообразован", "логист"
+    ],
+    "relevance_check": {
+      "skills": [
+        "Бизнес-анализ", "Системный анализ", "Анализ требований", "Разработка бизнес-требований", "Сбор требований",
+        "Нефункциональные требования", "Декомпозиция требований", "Постановка задач разработчикам",
+        "Моделирование бизнес-процессов", "Описание бизнес-процессов", "BPMN", "UML", "Use Case", "User Story",
+        "Acceptance Criteria", "ER-диаграмма", "DFD", "Sequence Diagram", "Activity Diagram", "ТЗ", "ФТ", "BRD",
+        "SRS", "ГОСТ 34", "API", "Интеграции", "REST API", "Swagger", "OpenAPI"
+      ],
+      "min_count": 4
+    },
     "initial_period_days": 14,
     "request_delay_sec": 3
+  },
+  "vacancy_lists": {
+    "include": [
+      {"id": "138201935", "note": "HCM, роль 10 «Аналитик» — до фильтра с mode"},
+      {"id": "134559150", "note": "«#» в названии — пропуск поиска (п. 27)"},
+      {"id": "136258258", "note": "«#» в названии — пропуск поиска (п. 27)"},
+      {"id": "137442174", "note": "Fullstack — пропуск поиска (п. 27)"},
+      {"id": "138048686", "note": "Fullstack — пропуск поиска (п. 27)"},
+      {"id": "138106401", "note": "роль 148 без «аналитик» в названии — до поиска по роли"},
+      {"id": "138198748", "note": "роль 148 без «аналитик» в названии — до поиска по роли"}
+    ],
+    "exclude": []
   },
   "analytical_skills_dictionary": {
     "Бизнес-анализ": ["Business Analysis"],

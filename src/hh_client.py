@@ -20,7 +20,7 @@ from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 
-from src.config import PROJECT_ROOT, load_preferences, professional_role_ids
+from src.config import PROJECT_ROOT, load_preferences, professional_role_ids, professional_roles, vacancy_list
 from src.text_utils import VACANCY, count, duration
 
 logger = logging.getLogger(__name__)
@@ -299,6 +299,29 @@ def _html_to_paragraphs(text: Optional[str]) -> Optional[list[str]]:
     return [p for p in paragraphs if p and p not in ("-", "**")]
 
 
+def _word_in_title(name: str, words: Any) -> Optional[str]:
+    """Первое слово из words, которое есть в названии (без учёта регистра, как часть слова), или None."""
+    lowered = (name or "").lower()
+    return next((w for w in _as_list(words) if str(w).strip() and str(w).strip().lower() in lowered), None)
+
+
+def exclusion_reason(name: str, found_by: str, settings: dict[str, Any]) -> Optional[str]:
+    """Причина исключения вакансии по названию (AC 2.1, AC 3.4) или None.
+
+    exclude_words действуют на все вакансии, exclude_title_words — только на найденные
+    только по роли (found_by == "role"): если название совпало с target_roles, слово
+    о домене (логистика, CRM-система) вакансию не исключает.
+    """
+    word = _word_in_title(name, settings.get("exclude_words"))
+    if word:
+        return f"слово «{word}» в названии"
+    if found_by == "role":
+        word = _word_in_title(name, settings.get("exclude_title_words"))
+        if word:
+            return f"слово «{word}» в названии (найдена только по роли)"
+    return None
+
+
 def to_record(item: dict[str, Any]) -> dict[str, Any]:
     """Оставляет поля вакансии из AC 2.4."""
     snippet = item.get("snippet") or {}
@@ -344,11 +367,33 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
     params = build_search_params(settings, period_days, date_from)
     client = HHClient(delay=float(settings.get("request_delay_sec") or DEFAULT_DELAY))
 
-    items = _collect(client, params, split_keys=["area", "experience"])
-    records = list({item["id"]: to_record(item) for item in items}.values())  # без дублей
+    items = {item["id"]: item for item in _collect(client, params, split_keys=["area", "experience"])}
+    title_ids = set(items)
+    # Роли, которым достаточно самой роли (mode role / check), ищутся ещё и без названия (AC 2.1).
+    role_only = [role for role in professional_roles(settings) if role["mode"] in ("role", "check")]
+    if role_only:
+        base = [(k, v) for k, v in params if k not in ("text", "search_field", "professional_role")]
+        for role in role_only:
+            logger.info("Поиск только по роли HH %s «%s» (mode %s)", role["id"], role["name"], role["mode"])
+            for item in _collect(client, base + [("professional_role", role["id"])], ["area", "experience"]):
+                items.setdefault(item["id"], item)
+
+    records, excluded = [], []
+    for vacancy_id, item in items.items():
+        found_by = "title" if vacancy_id in title_ids else "role"
+        reason = exclusion_reason(item.get("name", ""), found_by, settings)
+        if reason:
+            excluded.append(f"{vacancy_id} {item.get('name')} — {reason}")
+            continue
+        records.append({**to_record(item), "found_by": found_by})
+    if excluded:
+        logger.info("Исключено по названию: %d\n  %s", len(excluded), "\n  ".join(excluded))
+    if role_only:
+        logger.info("Найдено только по роли: %d", sum(r["found_by"] == "role" for r in records))
     # Новая вакансия — id, которого нет в прежних выгрузках (Z-5). Уже известные — поднятые работодателем
     # или попавшие в запас в 1 час на стыке с прошлой выгрузкой.
     known_ids = set(_all_vacancy_ids())
+    records += _fetch_included(client, known_ids | {str(r["id"]) for r in records})
     new_count = sum(str(record["id"]) not in known_ids for record in records)
     logger.info("Результат поиска: %s — новых %d, уже известных %d (есть в прошлых выгрузках)",
                 count(len(records), *VACANCY), new_count, len(records) - new_count)
@@ -360,6 +405,7 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
         "period_days": period_days,
         "date_from": date_from.isoformat(timespec="seconds") if date_from else None,
         "search_params": [[k, v] for k, v in params],
+        "role_only_search": [role["id"] for role in role_only],
         "count": len(records),
         "new_count": new_count,
         "vacancies": records,
@@ -367,6 +413,28 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     logger.info("Выгрузка сохранена: %s → %s", count(len(records), *VACANCY), path)
     return path
+
+
+def _fetch_included(client: HHClient, known_ids: set[str]) -> list[dict[str, Any]]:
+    """Догружает по ID вакансии из vacancy_lists.include, которых нет ни в одной выгрузке (AC 2.8).
+
+    Метаданные и полное описание берутся из одного ответа GET /vacancies/{id}; описание
+    сразу сохраняется в кэш data/details/. Удалённая вакансия — предупреждение, выгрузка продолжается.
+    """
+    missing = [vid for vid in vacancy_list(load_preferences(), "include") if vid not in known_ids]
+    records = []
+    for vacancy_id in missing:
+        try:
+            data = client.get(f"/vacancies/{vacancy_id}")
+        except HHApiError as exc:
+            logger.warning("Вакансия %s из vacancy_lists.include не загружена: %s", vacancy_id, exc)
+            continue
+        if not (DETAILS_DIR / f"{vacancy_id}.json").exists():
+            DETAILS_DIR.mkdir(parents=True, exist_ok=True)
+            _save_detail(vacancy_id, _detail_record(vacancy_id, data))
+        records.append({**to_record(data), "found_by": "include"})
+        logger.info("Вакансия %s «%s» добавлена из vacancy_lists.include", vacancy_id, data.get("name"))
+    return records
 
 
 def _cached_detail_ids() -> set[str]:

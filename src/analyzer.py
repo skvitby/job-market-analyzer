@@ -16,8 +16,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
-from src.config import PROJECT_ROOT, load_preferences, professional_role_ids
-from src.hh_client import DATA_DIR, DETAILS_DIR
+from src.config import PROJECT_ROOT, load_preferences, professional_roles, vacancy_list
+from src.hh_client import DATA_DIR, DETAILS_DIR, exclusion_reason
 from src.llm_service import LLMError, ask_json, get_settings
 from src.text_utils import SKILL, VACANCY, count, normalize_text, plural, quote_found
 
@@ -144,7 +144,13 @@ def load_vacancies(data_path: Optional[Path] = None) -> tuple[list[dict[str, Any
         })
         for vacancy in payload["vacancies"]:
             # Файлы по возрастанию времени — свежая запись перезаписывает и засчитывается за своим файлом.
-            vacancies[str(vacancy["id"])] = {**vacancy, "_source": path.name}
+            vacancy_id = str(vacancy["id"])
+            record = {**vacancy, "_source": path.name}
+            # Нашлась по названию хоть в одной выгрузке — считается найденной по названию (AC 3.4).
+            previous = vacancies.get(vacancy_id)
+            if previous and previous.get("found_by", "title") == "title":
+                record["found_by"] = "title"
+            vacancies[vacancy_id] = record
     return list(vacancies.values()), files
 
 
@@ -159,19 +165,62 @@ def filter_vacancies(vacancies: list[dict[str, Any]], days: Optional[int] = None
     return vacancies
 
 
-def filter_roles(vacancies: list[dict[str, Any]], role_ids: list[str]) -> tuple[list[dict[str, Any]], int, int]:
-    """Исключает вакансии, у которых сохранены роли HH и ни одна не входит в role_ids (AC 3.4).
+def _relevance(vacancy: dict[str, Any], check: Optional[dict[str, Any]],
+               dictionary: dict[str, list[str]]) -> Optional[str]:
+    """Проверка описания для роли с mode check (AC 3.4): None — прошла, иначе причина исключения."""
+    if not check or not check.get("skills"):
+        return "не задана проверка описания (relevance_check)"
+    unknown = [skill for skill in check["skills"] if skill not in dictionary]
+    if unknown:
+        raise ValueError(f"Навыки из relevance_check нет в словаре навыков: {', '.join(unknown)}")
+    min_count = int(check.get("min_count") or 1)
+    matchers = build_matchers({skill: dictionary[skill] for skill in check["skills"]})
+    text, _ = vacancy_text(vacancy, load_detail(str(vacancy["id"])))
+    found = sorted(match_skills(text, matchers))
+    if len(found) >= min_count:
+        return None
+    return (f"проверка описания: {len(found)} из нужных {min_count} навыков"
+            + (f" ({', '.join(found)})" if found else ""))
 
-    Вакансии без сохранённых ролей (выгрузки до 08.10.2026) остаются как есть.
-    Возвращает оставшиеся вакансии, число исключённых и число оставшихся без сведений о роли.
+
+def select_vacancies(vacancies: list[dict[str, Any]], prefs: dict[str, Any],
+                     dictionary: dict[str, list[str]]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Отбирает вакансии в отчёт по шагам AC 3.4: ручные списки, слова в названии, роли HH, проверка описания.
+
+    Возвращает оставшиеся вакансии и сведения для отчёта: роли фильтра, исключённые с причинами,
+    число вошедших по ручному списку и без сведений о роли (выгрузки до 08.10.2026).
     """
-    if not role_ids:
-        return vacancies, 0, 0
-    allowed = set(role_ids)
-    kept = [v for v in vacancies
-            if not v.get("professional_roles") or allowed & {str(r) for r in v["professional_roles"]}]
-    unknown = sum(not v.get("professional_roles") for v in kept)
-    return kept, len(vacancies) - len(kept), unknown
+    settings = prefs["search_settings"]
+    roles = {role["id"]: role for role in professional_roles(settings)}
+    include, exclude = vacancy_list(prefs, "include"), vacancy_list(prefs, "exclude")
+    kept, excluded = [], []
+    included = unknown = 0
+    for vacancy in vacancies:
+        vacancy_id = str(vacancy["id"])
+        found_by = vacancy.get("found_by") or "title"  # в старых выгрузках — только поиск по названию
+        reason = None
+        if vacancy_id in exclude:
+            reason = "ручной список exclude" + (f": {exclude[vacancy_id]}" if exclude[vacancy_id] else "")
+        elif vacancy_id in include:
+            included += 1
+        else:
+            reason = exclusion_reason(vacancy.get("name", ""), found_by, settings)
+            saved = [str(r) for r in vacancy.get("professional_roles") or []]
+            if reason is None and roles:
+                modes = {roles[r]["mode"] for r in saved if r in roles}
+                if not saved:
+                    unknown += 1
+                elif not modes:
+                    reason = f"роль вне списка ({', '.join(saved)})"
+                elif found_by == "role" and "role" not in modes:
+                    reason = (_relevance(vacancy, settings.get("relevance_check"), dictionary) if "check" in modes
+                              else "найдена только по роли, а роль требует совпадения названия")
+        if reason:
+            excluded.append({"vacancy": vacancy, "reason": reason})
+        else:
+            kept.append(vacancy)
+    names = [f"{r['name']} ({r['id']}, {r['mode']})" for r in roles.values()]
+    return kept, {"roles": names, "excluded": excluded, "included": included, "unknown": unknown}
 
 
 def load_detail(vacancy_id: str) -> Optional[dict[str, Any]]:
@@ -620,11 +669,11 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
                  files: list[dict[str, Any]], days: Optional[int], area: Optional[str], use_llm: bool,
                  llm_error: Optional[str] = None, candidates: Optional[list[dict[str, Any]]] = None,
                  cv_result: Optional[dict[str, Any]] = None, cv_note: Optional[str] = None,
-                 single_file: bool = False, role_filter: Optional[dict[str, Any]] = None) -> str:
+                 single_file: bool = False, selection: Optional[dict[str, Any]] = None) -> str:
     """Формирует Markdown-отчёт (AC 3.2): топ навыков, раздел LLM (AC 3.1), сравнение с резюме (AC 3.3).
 
     files — сведения о файлах выгрузок; single_file — анализ одного файла (--data);
-    role_filter — фильтр ролей HH (AC 3.4): названия ролей, число исключённых и вакансий без сведений о роли.
+    selection — итоги отбора вакансий (AC 3.4, select_vacancies): роли, исключённые, ручной список.
     """
     total, full_count = stats["total"], stats["full_count"]
     skill_counts, unmatched = stats["skill_counts"], stats["unmatched"]
@@ -634,8 +683,8 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         filters.append(f"регион «{area}»")
     if days:
         filters.append(f"последние {days} дн.")
-    if role_filter:
-        filters.append(f"роли HH: {', '.join(role_filter['names'])}")
+    if selection and selection["roles"]:
+        filters.append(f"роли HH: {', '.join(selection['roles'])}")
 
     lines = [
         "# Востребованные навыки BA/SA на рынке",
@@ -647,9 +696,12 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         f"{_format_date(max(dates, default=None))}",
         f"- **Вакансий:** {total} (по полному описанию — {full_count}, по сниппетам — {total - full_count})",
     ]
-    if role_filter:
-        lines.append(f"- **Фильтр ролей HH:** исключено {role_filter['excluded']}, без сведений о роли "
-                     f"{role_filter['unknown']} (выгрузки до 08.10.2026 — анализируются как есть)")
+    if selection:
+        excluded_count = len(selection["excluded"])
+        lines.append(f"- **Отбор вакансий:** исключено {excluded_count}"
+                     + (" ([[#Исключённые вакансии]])" if excluded_count else "")
+                     + f", по ручному списку {selection['included']}, без сведений о роли {selection['unknown']} "
+                       "(выгрузки до 08.10.2026 — анализируются как есть)")
     if use_llm:
         lines.append("- **Сравнение с резюме:** см. раздел [[#Сравнение с резюме]]")
     if total and full_count < total:
@@ -676,6 +728,7 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
         lines += _llm_section(stats, llm_error)
         lines += _cv_section(candidates or [], cv_result, cv_note)
 
+    lines += _excluded_section(selection)
     if not single_file:
         lines += _files_section(files, vacancies)
 
@@ -697,6 +750,21 @@ def _source_summary(files: list[dict[str, Any]], single_file: bool) -> str:
     period = f" за {min(times):%d.%m}–{max(times):%d.%m.%Y}" if times else ""
     return (f"{count(len(files), 'выгрузка', 'выгрузки', 'выгрузок')}{period} "
             "(список — в конце отчёта, [[#Файлы выгрузок]])")
+
+
+def _excluded_section(selection: Optional[dict[str, Any]]) -> list[str]:
+    """Свёрнутый блок исключённых вакансий с причинами (AC 3.2) — для проверки фильтров."""
+    if not selection or not selection["excluded"]:
+        return []
+    items = selection["excluded"]
+    lines = ["", "## Исключённые вакансии", "", f"> [!note]- Исключённые вакансии ({len(items)})", ">",
+             "> | ID | Вакансия | Причина |", "> |---|---|---|"]
+    for item in sorted(items, key=lambda i: i["reason"]):
+        v = item["vacancy"]
+        link = f"[{v['id']}]({v['alternate_url']})" if v.get("alternate_url") else str(v["id"])
+        name = (v.get("name") or "—").replace("|", "/")
+        lines.append(f"> | {link} | {name} | {item['reason']} |")
+    return lines
 
 
 def _files_section(files: list[dict[str, Any]], vacancies: list[dict[str, Any]]) -> list[str]:
@@ -728,14 +796,9 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     excluded = excluded_matcher(prefs["excluded_skills"])
     all_vacancies, files = load_vacancies(data_path)
     vacancies = filter_vacancies(all_vacancies, days, area)
-    role_ids = professional_role_ids(prefs["search_settings"])
-    vacancies, roles_excluded, roles_unknown = filter_roles(vacancies, role_ids)
-    role_filter = None
-    if role_ids:
-        names = {str(r["id"]): r.get("name") for r in prefs["search_settings"]["professional_roles"] if isinstance(r, dict)}
-        role_filter = {"names": [f"{names.get(i) or i} ({i})" for i in role_ids],
-                       "excluded": roles_excluded, "unknown": roles_unknown}
-        logger.info("Фильтр ролей HH: исключено %d, без сведений о роли %d", roles_excluded, roles_unknown)
+    vacancies, selection = select_vacancies(vacancies, prefs, dictionary)
+    logger.info("Отбор вакансий: исключено %d, по ручному списку %d, без сведений о роли %d",
+                len(selection["excluded"]), selection["included"], selection["unknown"])
     if not vacancies:
         if area and not filter_vacancies(all_vacancies, None, area):
             # Город не найден вовсе — подсказываем, какие есть в данных (Z-3).
@@ -766,7 +829,7 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     REPORTS_DIR.mkdir(exist_ok=True)
     report = build_report(stats, dictionary, vacancies, files, days, area, use_llm,
                           llm_error, candidates, cv_result, cv_note, single_file=data_path is not None,
-                          role_filter=role_filter)
+                          selection=selection)
     REPORT_PATH.write_text(report, encoding="utf-8")
     logger.info("Отчёт сохранён в %s", REPORT_PATH)
     return REPORT_PATH, len(vacancies), warnings

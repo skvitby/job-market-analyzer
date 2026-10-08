@@ -23,9 +23,12 @@ DEFAULT_PREFERENCES: dict[str, Any] = {
         "min_salary": None,
         "exclude_words": [],
         "professional_roles": [],
+        "exclude_title_words": [],
+        "relevance_check": None,
         "initial_period_days": 14,
         "request_delay_sec": 3.0,
     },
+    "vacancy_lists": {"include": [], "exclude": []},
     "analytical_skills_dictionary": [
         "SQL", "UML", "BPMN", "REST API", "JSON",
         "Swagger", "Postman", "Python", "Agile", "Scrum",
@@ -80,19 +83,46 @@ def load_preferences(path: Optional[Path] = None) -> dict[str, Any]:
     return _merge(DEFAULT_PREFERENCES, user_prefs)
 
 
-def professional_role_ids(settings: dict[str, Any]) -> list[str]:
-    """Возвращает ID ролей HH из professional_roles (AC 1.1); пустой список — без фильтра.
+ROLE_MODES = ("role", "check", "title")
 
-    Элемент — объект {"id", "name"}, как в regions, или просто ID.
-    ID возвращаются строками, как их отдаёт HH API.
+
+def professional_roles(settings: dict[str, Any]) -> list[dict[str, str]]:
+    """Роли HH из professional_roles (AC 1.1): [{"id", "name", "mode"}]; пустой список — без фильтра.
+
+    Элемент — объект {"id", "name", "mode"}, как в regions, или просто ID.
+    mode: role — роли достаточно, check — название или проверка описания, title — только с названием
+    (по умолчанию). ID возвращаются строками, как их отдаёт HH API.
     """
     roles = settings.get("professional_roles") or []
     if not isinstance(roles, list):
         roles = [roles]
-    ids = []
+    result = []
     for role in roles:
-        role_id = role.get("id") if isinstance(role, dict) else role
-        if role_id is None or not str(role_id).strip().isdigit():
+        item = role if isinstance(role, dict) else {"id": role}
+        role_id = str(item.get("id", "")).strip()
+        if not role_id.isdigit():
             raise ValueError(f"Некорректная роль в professional_roles: {role!r} — нужен числовой ID роли HH")
-        ids.append(str(role_id).strip())
-    return ids
+        mode = item.get("mode") or "title"
+        if mode not in ROLE_MODES:
+            raise ValueError(f"Некорректный mode у роли {role_id} в professional_roles: «{mode}» — "
+                             f"допустимо {', '.join(ROLE_MODES)}")
+        result.append({"id": role_id, "name": item.get("name") or role_id, "mode": mode})
+    return result
+
+
+def professional_role_ids(settings: dict[str, Any]) -> list[str]:
+    """ID ролей HH из professional_roles строками (AC 1.1)."""
+    return [role["id"] for role in professional_roles(settings)]
+
+
+def vacancy_list(prefs: dict[str, Any], kind: str) -> dict[str, str]:
+    """Ручной список vacancy_lists.include / .exclude (AC 1.1): {ID вакансии: пометка}."""
+    items = (prefs.get("vacancy_lists") or {}).get(kind) or []
+    result = {}
+    for item in items:
+        item = item if isinstance(item, dict) else {"id": item}
+        vacancy_id = str(item.get("id", "")).strip()
+        if not vacancy_id.isdigit():
+            raise ValueError(f"Некорректный ID в vacancy_lists.{kind}: {item!r} — нужен числовой ID вакансии HH")
+        result[vacancy_id] = item.get("note") or ""
+    return result

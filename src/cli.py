@@ -16,7 +16,7 @@ from src.cover_letter import generate_cover_letter
 from src.cv_tips import generate_cv_tips
 from src.hh_client import HHApiError, fetch_details, fetch_vacancies
 from src.llm_service import LLMError
-from src.config import PROJECT_ROOT
+from src.config import PROJECT_ROOT, load_preferences, professional_roles
 from src.text_utils import VACANCY, count
 
 app = typer.Typer(help="Job Market Analyzer: сбор и анализ вакансий BA/SA.", no_args_is_help=True)
@@ -78,7 +78,9 @@ def fetch(
         if [v.lower() for v in values] == ["none"]:
             overrides["professional_roles"] = []
         elif all(v.isdigit() for v in values):
-            overrides["professional_roles"] = values
+            # Роль из профиля сохраняет свой mode, другая работает как «название и роль» (AC 2.1).
+            profile_roles = {r["id"]: r for r in professional_roles(load_preferences()["search_settings"])}
+            overrides["professional_roles"] = [profile_roles.get(v, {"id": v, "mode": "title"}) for v in values]
         else:
             typer.secho("Ошибка: --professional-role — числовой ID роли HH (например, 150) или none "
                         "(без фильтра; указывается один раз, без других ролей)", fg=typer.colors.RED, err=True)
