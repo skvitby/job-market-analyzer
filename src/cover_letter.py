@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from src.analyzer import build_matchers, dictionary_cv_status, match_skills, normalize_dictionary
 from src.config import PROJECT_ROOT, load_preferences
+from src.file_utils import write_text_atomic
 from src.hh_client import get_vacancy
 from src.llm_service import ask_json, get_settings
 from src.text_utils import count, normalize_text, quote_found
@@ -323,8 +324,7 @@ def generate_cover_letter(vacancy_id: str, letters_dir: Optional[Path] = None) -
     letters_dir = letters_dir or LETTERS_DIR
     letters_dir.mkdir(parents=True, exist_ok=True)
     path, version = next_version_path(str(vacancy["id"]), letters_dir)
-    path.write_text(render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words),
-                    encoding="utf-8")
+    write_text_atomic(path, render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words))
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
     logger.info("Письмо сохранено: %s (версия %d, %s)", shown, version, count(words, *WORD))
     return path, version, warnings

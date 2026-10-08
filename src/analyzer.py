@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from src.config import PROJECT_ROOT, load_preferences, professional_roles, vacancy_list
+from src.file_utils import write_text_atomic
 from src.hh_client import DATA_DIR, DETAILS_DIR, exclusion_reason
 from src.llm_service import LLMError, ask_json, get_settings
 from src.text_utils import SKILL, VACANCY, count, normalize_text, plural, quote_found
@@ -256,9 +257,7 @@ def load_llm_cache(path: Path = LLM_CACHE_PATH) -> dict[str, dict[str, Any]]:
 
 def save_llm_cache(cache: dict[str, dict[str, Any]], path: Path = LLM_CACHE_PATH) -> None:
     """Сохраняет кэш LLM через временный файл, чтобы прерывание не повредило оплаченные результаты."""
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    write_text_atomic(path, json.dumps(cache, ensure_ascii=False, indent=2))
 
 
 def _llm_payload(vacancy: dict[str, Any], description: str) -> str:
@@ -830,6 +829,6 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
     report = build_report(stats, dictionary, vacancies, files, days, area, use_llm,
                           llm_error, candidates, cv_result, cv_note, single_file=data_path is not None,
                           selection=selection)
-    REPORT_PATH.write_text(report, encoding="utf-8")
+    write_text_atomic(REPORT_PATH, report)
     logger.info("Отчёт сохранён в %s", REPORT_PATH)
     return REPORT_PATH, len(vacancies), warnings

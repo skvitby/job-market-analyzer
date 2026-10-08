@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from src.analyzer import build_matchers, dictionary_cv_status, match_skills, normalize_dictionary
 from src.config import PROJECT_ROOT, load_preferences
+from src.file_utils import write_text_atomic
 from src.cover_letter import (CV_PATH, LANGUAGE_NAMES, LANGUAGES, _cell, _yaml, build_input, detect_language,
                               load_prompt, mark_unconfirmed, next_version_path)
 from src.hh_client import get_vacancy
@@ -266,7 +267,7 @@ def generate_cv_tips(vacancy_id: str, tips_dir: Optional[Path] = None) -> tuple[
     tips_dir = tips_dir or TIPS_DIR
     tips_dir.mkdir(parents=True, exist_ok=True)
     path, version = next_version_path(str(vacancy["id"]), tips_dir, "cv_tips")
-    path.write_text(render(vacancy, tips, gaps, language, version, settings.model), encoding="utf-8")
+    write_text_atomic(path, render(vacancy, tips, gaps, language, version, settings.model))
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
     logger.info("Советы сохранены: %s (версия %d, %s)", shown, version, count(len(tips), *TIP))
     return path, version, warnings

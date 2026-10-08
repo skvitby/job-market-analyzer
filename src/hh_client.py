@@ -21,6 +21,7 @@ from urllib.parse import urlencode
 from dotenv import load_dotenv
 
 from src.config import PROJECT_ROOT, load_preferences, professional_role_ids, professional_roles, vacancy_list
+from src.file_utils import write_text_atomic
 from src.text_utils import VACANCY, count, duration
 
 logger = logging.getLogger(__name__)
@@ -410,7 +411,7 @@ def fetch_vacancies(overrides: Optional[dict[str, Any]] = None) -> Path:
         "new_count": new_count,
         "vacancies": records,
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_text_atomic(path, json.dumps(payload, ensure_ascii=False, indent=2))
     logger.info("Выгрузка сохранена: %s → %s", count(len(records), *VACANCY), path)
     return path
 
@@ -475,10 +476,7 @@ def area_names(client: HHClient, region_ids: list[int]) -> set[str]:
 
 def _save_detail(vacancy_id: str, detail: dict[str, Any]) -> None:
     """Сохраняет описание в data/details/{id}.json через временный файл (без обрывков при Ctrl+C)."""
-    path = DETAILS_DIR / f"{vacancy_id}.json"
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(detail, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    write_text_atomic(DETAILS_DIR / f"{vacancy_id}.json", json.dumps(detail, ensure_ascii=False, indent=2))
 
 
 def _detail_record(vacancy_id: str, data: Optional[dict[str, Any]]) -> dict[str, Any]:
