@@ -56,6 +56,7 @@ tags: [status, job-market-analyzer]
 | `docs/prototype/screenshot-*.png` | Скриншоты прототипа для README |
 | [docs/adr/001-llm-provider.md](adr/001-llm-provider.md) | Выбор LLM-провайдера, сравнение моделей, контекст Ollama |
 | [docs/adr/002-vacancy-details-cache.md](adr/002-vacancy-details-cache.md) | Хранение полных описаний вакансий в отдельном кэше `data/details/` |
+| [docs/research/hh-roles-filter.md](research/hh-roles-filter.md) | **Роли HH и фильтр вакансий не из IT** (п. 26): что такое роль HH, как работает поиск, исследования 03.10 и 07.10 (кавычки), предложение по фильтру, открытые вопросы |
 | [docs/testing/test-report-us01-03.md](testing/test-report-us01-03.md) | Протокол приёмки US-01 — US-03 |
 | [docs/testing/test-report-us04.md](testing/test-report-us04.md) | Протокол приёмки US-04: 3 прогона (Haiku, Sonnet, Haiku t=0), дефекты, решение |
 | [docs/testing/test-report-us05.md](testing/test-report-us05.md) | Протокол приёмки US-05: 16 тест-кейсов, замечания C-1…C-4 по Haiku, контрольный прогон на Sonnet, решение |
