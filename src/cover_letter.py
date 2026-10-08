@@ -5,6 +5,7 @@ llm_providers.cv_processing (AC 1.5, AC 4.2), т.к. в запрос перед�
 Каждая генерация — новый файл: cl_{id}.md, затем cl_{id}_v2.md, _v3.md … (AC 4.4).
 """
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -30,6 +31,7 @@ BEFORE_SENDING = (
     "Язык и тон подходят вакансии",
     "Фразы читаются естественно",
 )
+JSON_SCHEMA_VERSION = 1  # формат .json рядом с письмами и советами (AC 6.2)
 MAX_WORDS_TOLERANCE = 1.2  # превышение ориентира объёма больше чем на 20% — предупреждение (AC 4.5)
 
 LANGUAGES = {"ru": "русском", "en": "английском"}   # код -> форма для промпта («на … языке»)
@@ -184,23 +186,28 @@ def _cell(text: str) -> str:
     return text.replace("|", "/").replace("\n", " ")
 
 
-def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], unconfirmed: list[dict[str, Any]],
-           language: str, version: int, model: str, words: int) -> str:
-    """Markdown-файл письма для Obsidian (AC 4.4), блоки сверху вниз: метаданные, текст письма,
-    требования без подтверждения (если есть), чек-лист «Перед отправкой», таблица пар соответствия.
-    """
-    meta = {
+def file_meta(vacancy: dict[str, Any], version: int, model: str, language: str,
+              generated: Optional[str] = None) -> dict[str, Any]:
+    """Метаданные файла письма или советов (frontmatter .md и поля .json, AC 4.4, AC 5.5, AC 6.2)."""
+    return {
         "vacancy_id": vacancy["id"],
         "vacancy": vacancy.get("name") or "",
         "employer": vacancy.get("employer") or "",
         "area": vacancy.get("area") or "",
         "url": (vacancy.get("alternate_url") or "").split("?")[0],
         "version": version,
-        "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "generated": generated or datetime.now().astimezone().isoformat(timespec="seconds"),
         "model": model,
         "language": language,
-        "words": words,
     }
+
+
+def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], unconfirmed: list[dict[str, Any]],
+           language: str, version: int, model: str, words: int, generated: Optional[str] = None) -> str:
+    """Markdown-файл письма для Obsidian (AC 4.4), блоки сверху вниз: метаданные, текст письма,
+    требования без подтверждения (если есть), чек-лист «Перед отправкой», таблица пар соответствия.
+    """
+    meta = {**file_meta(vacancy, version, model, language, generated), "words": words}
     lines = ["---", *(f"{key}: {_yaml(value)}" for key, value in meta.items()), "tags: [cover-letter]", "---", ""]
     title = vacancy.get("name") or vacancy["id"]
     employer = f" — {vacancy['employer']}" if vacancy.get("employer") else ""
@@ -238,6 +245,29 @@ def render(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]], 
         lines.append("> Прямых подтверждений требований вакансии в резюме не найдено.")
     lines.append("")
     return "\n".join(lines)
+
+
+def letter_data(vacancy: dict[str, Any], letter: str, matches: list[dict[str, Any]],
+                unconfirmed: list[dict[str, Any]], language: str, version: int, model: str, words: int,
+                warnings: list[str], generated: str) -> dict[str, Any]:
+    """Те же данные, что в Markdown письма, для веб-интерфейса (AC 6.2) — файл .json рядом с .md."""
+    return {
+        "schema_version": JSON_SCHEMA_VERSION,
+        **file_meta(vacancy, version, model, language, generated),
+        "words": words,
+        "letter": letter.strip(),
+        "unconfirmed": unconfirmed_data(unconfirmed),
+        "before_sending": list(BEFORE_SENDING),
+        "matches": [{"requirement": m.get("requirement", ""), "cv_evidence": m.get("cv_evidence", ""),
+                     "verified": bool(m.get("verified"))} for m in matches],
+        "warnings": warnings,
+    }
+
+
+def unconfirmed_data(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Требования без подтверждения для .json: пары (навык, фрагмент) — объектами."""
+    return [{"text": item["text"], "in_cv": [{"skill": skill, "fragment": fragment} for skill, fragment in item["in_cv"]]}
+            for item in items]
 
 
 def mark_unconfirmed(items: list[str], cv_text: str,
@@ -324,7 +354,12 @@ def generate_cover_letter(vacancy_id: str, letters_dir: Optional[Path] = None) -
     letters_dir = letters_dir or LETTERS_DIR
     letters_dir.mkdir(parents=True, exist_ok=True)
     path, version = next_version_path(str(vacancy["id"]), letters_dir)
-    write_text_atomic(path, render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words))
+    generated = datetime.now().astimezone().isoformat(timespec="seconds")
+    # Сначала .json, затем .md: есть .md — рядом точно есть .json (AC 6.2).
+    data = letter_data(vacancy, letter, matches, unconfirmed, language, version, settings.model, words, warnings, generated)
+    write_text_atomic(path.with_suffix(".json"), json.dumps(data, ensure_ascii=False, indent=2))
+    write_text_atomic(path, render(vacancy, letter, matches, unconfirmed, language, version, settings.model, words,
+                                   generated))
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
     logger.info("Письмо сохранено: %s (версия %d, %s)", shown, version, count(words, *WORD))
     return path, version, warnings

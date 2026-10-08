@@ -5,6 +5,7 @@ llm_providers.cv_processing (AC 1.5, AC 5.2), т.к. в запрос перед�
 Промпт — prompts/cv_tips.md; загрузка промпта, язык и текст запроса — общие с письмом (src/cover_letter.py).
 """
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -14,8 +15,9 @@ from typing import Any, Optional
 from src.analyzer import build_matchers, dictionary_cv_status, match_skills, normalize_dictionary
 from src.config import PROJECT_ROOT, load_preferences
 from src.file_utils import write_text_atomic
-from src.cover_letter import (CV_PATH, LANGUAGE_NAMES, LANGUAGES, _cell, _yaml, build_input, detect_language,
-                              load_prompt, mark_unconfirmed, next_version_path)
+from src.cover_letter import (CV_PATH, JSON_SCHEMA_VERSION, LANGUAGE_NAMES, LANGUAGES, _cell, _yaml, build_input,
+                              detect_language, file_meta, load_prompt, mark_unconfirmed, next_version_path,
+                              unconfirmed_data)
 from src.hh_client import get_vacancy
 from src.llm_service import ask_json, get_settings
 from src.text_utils import count, normalize_text, quote_found
@@ -179,24 +181,13 @@ def check_answer(answer: dict[str, Any], cv_text: str, dictionary: Optional[dict
 
 
 def render(vacancy: dict[str, Any], tips: list[dict[str, Any]], gaps: list[dict[str, Any]],
-           language: str, version: int, model: str) -> str:
+           language: str, version: int, model: str, generated: Optional[str] = None) -> str:
     """Markdown-файл советов для Obsidian (AC 5.5), блоки сверху вниз: метаданные, советы с отметками
     проверок (AC 5.4), пробелы (если есть), чек-лист «Перед правкой резюме».
 
     «Стало» выводится блоком кода — в Obsidian его можно скопировать кнопкой.
     """
-    meta = {
-        "vacancy_id": vacancy["id"],
-        "vacancy": vacancy.get("name") or "",
-        "employer": vacancy.get("employer") or "",
-        "area": vacancy.get("area") or "",
-        "url": (vacancy.get("alternate_url") or "").split("?")[0],
-        "version": version,
-        "generated": datetime.now().astimezone().isoformat(timespec="seconds"),
-        "model": model,
-        "language": language,
-        "tips": len(tips),
-    }
+    meta = {**file_meta(vacancy, version, model, language, generated), "tips": len(tips)}
     lines = ["---", *(f"{key}: {_yaml(value)}" for key, value in meta.items()), "tags: [cv-tips]", "---", ""]
     title = vacancy.get("name") or vacancy["id"]
     employer = f" — {vacancy['employer']}" if vacancy.get("employer") else ""
@@ -242,6 +233,22 @@ def render(vacancy: dict[str, Any], tips: list[dict[str, Any]], gaps: list[dict[
     return "\n".join(lines)
 
 
+def tips_data(vacancy: dict[str, Any], tips: list[dict[str, Any]], gaps: list[dict[str, Any]], language: str,
+              version: int, model: str, warnings: list[str], generated: str) -> dict[str, Any]:
+    """Те же данные, что в Markdown советов, для веб-интерфейса (AC 6.2) — файл .json рядом с .md."""
+    return {
+        "schema_version": JSON_SCHEMA_VERSION,
+        **file_meta(vacancy, version, model, language, generated),
+        "tips": [{**{key: tip[key] for key in ("section", "vacancy_quote", "cv_quote", "after", "why", "verified",
+                                              "numbers_missing", "terms_missing")},
+                  "in_section": [{"skill": skill, "fragment": fragment} for skill, fragment in tip["in_section"]]}
+                 for tip in tips],
+        "gaps": unconfirmed_data(gaps),
+        "before_editing": list(BEFORE_EDITING),
+        "warnings": warnings,
+    }
+
+
 def generate_cv_tips(vacancy_id: str, tips_dir: Optional[Path] = None) -> tuple[Path, int, list[str]]:
     """Советы по адаптации резюме под вакансию (US-05): LLM, проверки кодом и новая версия файла.
 
@@ -267,7 +274,11 @@ def generate_cv_tips(vacancy_id: str, tips_dir: Optional[Path] = None) -> tuple[
     tips_dir = tips_dir or TIPS_DIR
     tips_dir.mkdir(parents=True, exist_ok=True)
     path, version = next_version_path(str(vacancy["id"]), tips_dir, "cv_tips")
-    write_text_atomic(path, render(vacancy, tips, gaps, language, version, settings.model))
+    generated = datetime.now().astimezone().isoformat(timespec="seconds")
+    # Сначала .json, затем .md: есть .md — рядом точно есть .json (AC 6.2).
+    data = tips_data(vacancy, tips, gaps, language, version, settings.model, warnings, generated)
+    write_text_atomic(path.with_suffix(".json"), json.dumps(data, ensure_ascii=False, indent=2))
+    write_text_atomic(path, render(vacancy, tips, gaps, language, version, settings.model, generated))
     shown = path.relative_to(PROJECT_ROOT) if path.is_relative_to(PROJECT_ROOT) else path
     logger.info("Советы сохранены: %s (версия %d, %s)", shown, version, count(len(tips), *TIP))
     return path, version, warnings

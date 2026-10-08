@@ -32,6 +32,7 @@ TOP_LLM = 30        # сколько навыков, найденных LLM, п�
 
 CV_PATH = PROJECT_ROOT / "profile" / "my_cv.md"
 CV_CACHE_PATH = DATA_DIR / "cv_match_cache.json"
+REPORT_SCHEMA_VERSION = 1  # формат reports/market_skills_summary.json (AC 6.2)
 CV_MIN_SHARE = 0.05  # навыки словаря для сравнения с резюме — встречаются не менее чем в 5% вакансий
 CV_MIN_LLM = 2       # навыки, найденные LLM, — не менее чем в 2 вакансиях
 CV_CACHE_VERSION = 2  # меняется при изменении формата кэша сравнения с резюме — старый кэш не используется
@@ -355,6 +356,7 @@ def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[st
     unmatched: Counter[str] = Counter()
     unmatched_names: dict[str, str] = {}
     full_count = 0
+    vacancy_skills: dict[str, list[str]] = {}
     for vacancy in vacancies:
         detail = load_detail(str(vacancy["id"]))
         text, is_full = vacancy_text(vacancy, detail)
@@ -368,6 +370,7 @@ def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[st
                 unmatched[key] += 1
                 unmatched_names.setdefault(key, key_skill.strip())
         skill_counts.update(skills)  # навык учитывается не более одного раза на вакансию
+        vacancy_skills[str(vacancy["id"])] = sorted(skills)
 
     llm_counts: Counter[str] = Counter()
     llm_names: dict[str, Counter[str]] = {}
@@ -394,6 +397,7 @@ def collect_stats(vacancies: list[dict[str, Any]], dictionary: dict[str, list[st
         "unmatched": unmatched, "unmatched_names": unmatched_names,
         "llm_counts": llm_counts, "llm_processed": llm_processed, "llm_models": llm_models,
         "llm_names": {key: names.most_common(1)[0][0] for key, names in llm_names.items()},
+        "vacancy_skills": vacancy_skills,
     }
 
 
@@ -626,6 +630,17 @@ def _llm_section(stats: dict[str, Any], llm_error: Optional[str]) -> list[str]:
     return lines
 
 
+def _cv_summary(candidates: list[dict[str, Any]], cv_result: dict[str, Any]
+                ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]], Counter, float]:
+    """Навыки сравнения с долей на рынке, счётчики статусов и покрытие резюме с учётом частоты (AC 3.3)."""
+    share = {c["skill"]: c for c in candidates}
+    items = [i for i in cv_result["items"] if i["skill"] in share]
+    by_status = Counter(i["status"] for i in items)
+    total_share = sum(share[i["skill"]]["share"] for i in items) or 1
+    covered_share = sum(share[i["skill"]]["share"] for i in items if i["status"] != "missing")
+    return share, items, by_status, covered_share / total_share
+
+
 def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, Any]],
                 cv_note: Optional[str]) -> list[str]:
     """Раздел отчёта «Сравнение с резюме» (AC 3.3)."""
@@ -633,11 +648,7 @@ def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, 
     if cv_result is None:
         return lines + [f"> [!warning] {cv_note}"]
 
-    share = {c["skill"]: c for c in candidates}
-    items = [i for i in cv_result["items"] if i["skill"] in share]
-    by_status = Counter(i["status"] for i in items)
-    total_share = sum(share[i["skill"]]["share"] for i in items) or 1
-    covered_share = sum(share[i["skill"]]["share"] for i in items if i["status"] != "missing")
+    share, items, by_status, coverage = _cv_summary(candidates, cv_result)
     lines += [
         f"> [!info] Сопоставлено моделью `{cv_result['provider']} / {cv_result['model']}` "
         f"({cv_result['processed_at'][:16].replace('T', ' ')}). Навыки: из словаря с долей ≥ {CV_MIN_SHARE:.0%} "
@@ -650,7 +661,7 @@ def _cv_section(candidates: list[dict[str, Any]], cv_result: Optional[dict[str, 
         f"**Итого:** {count(len(items), *SKILL)} — ✅ {by_status['skills_section']} в разделе «Навыки», "
         f"🟡 {by_status['experience_only']} только в опыте, "
         f"⚠️ {count(by_status['missing'], 'пробел', 'пробела', 'пробелов')}. "
-        f"Покрытие с учётом частоты на рынке — **{covered_share / total_share:.0%}**.",
+        f"Покрытие с учётом частоты на рынке — **{coverage:.0%}**.",
         "",
         "| Навык | Частота на рынке | Наличие в резюме | Статус | Где в резюме |",
         "|---|---|---|---|---|",
@@ -668,7 +679,8 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
                  files: list[dict[str, Any]], days: Optional[int], area: Optional[str], use_llm: bool,
                  llm_error: Optional[str] = None, candidates: Optional[list[dict[str, Any]]] = None,
                  cv_result: Optional[dict[str, Any]] = None, cv_note: Optional[str] = None,
-                 single_file: bool = False, selection: Optional[dict[str, Any]] = None) -> str:
+                 single_file: bool = False, selection: Optional[dict[str, Any]] = None,
+                 generated: Optional[datetime] = None) -> str:
     """Формирует Markdown-отчёт (AC 3.2): топ навыков, раздел LLM (AC 3.1), сравнение с резюме (AC 3.3).
 
     files — сведения о файлах выгрузок; single_file — анализ одного файла (--data);
@@ -688,7 +700,7 @@ def build_report(stats: dict[str, Any], dictionary: dict[str, list[str]], vacanc
     lines = [
         "# Востребованные навыки BA/SA на рынке",
         "",
-        f"- **Сформирован:** {datetime.now():%d.%m.%Y %H:%M}",
+        f"- **Сформирован:** {generated or datetime.now():%d.%m.%Y %H:%M}",
         f"- **Источник:** {_source_summary(files, single_file)}",
         f"- **Фильтры:** {', '.join(filters) if filters else 'нет'}",
         f"- **Период публикации (с учётом поднятий):** {_format_date(min(dates, default=None))} — "
@@ -749,6 +761,78 @@ def _source_summary(files: list[dict[str, Any]], single_file: bool) -> str:
     period = f" за {min(times):%d.%m}–{max(times):%d.%m.%Y}" if times else ""
     return (f"{count(len(files), 'выгрузка', 'выгрузки', 'выгрузок')}{period} "
             "(список — в конце отчёта, [[#Файлы выгрузок]])")
+
+
+def _vacancy_data(vacancy: dict[str, Any], skills: Optional[list[str]] = None) -> dict[str, Any]:
+    """Вакансия для .json отчёта: поля выгрузки (AC 2.4) без служебных."""
+    data = {key: vacancy.get(key) for key in ("id", "name", "employer", "area", "salary", "published_at",
+                                               "alternate_url", "found_by", "professional_roles")}
+    data["found_by"] = data["found_by"] or "title"
+    data["source_file"] = vacancy.get("_source")
+    if skills is not None:
+        data["skills"] = skills
+    return data
+
+
+def report_data(stats: dict[str, Any], dictionary: dict[str, list[str]], vacancies: list[dict[str, Any]],
+                files: list[dict[str, Any]], days: Optional[int], area: Optional[str], use_llm: bool,
+                llm_error: Optional[str], candidates: Optional[list[dict[str, Any]]],
+                cv_result: Optional[dict[str, Any]], cv_note: Optional[str], single_file: bool,
+                selection: dict[str, Any], generated: datetime,
+                cv_modified: Optional[datetime]) -> dict[str, Any]:
+    """Те же данные, что в отчёте .md, для веб-интерфейса (AC 6.2, AC 6.3–6.6) — reports/market_skills_summary.json.
+
+    Сверх отчёта — навыки словаря по каждой вакансии (соответствие в карточке вакансии, AC 6.6)
+    и дата изменения резюме на момент сравнения (предупреждение «резюме изменено», AC 6.4).
+    """
+    total = stats["total"]
+    dates = [d for v in vacancies if (d := _published(v))]
+    used = Counter(v.get("_source") for v in vacancies)
+    skill_counts = stats["skill_counts"]
+    data: dict[str, Any] = {
+        "schema_version": REPORT_SCHEMA_VERSION,
+        "generated": generated.isoformat(timespec="seconds"),
+        "filters": {"area": area, "days": days, "data_file": files[0]["name"] if single_file else None,
+                    "roles": selection["roles"]},
+        "period": {"from": _iso(min(dates, default=None)), "to": _iso(max(dates, default=None))},
+        "vacancies_total": total,
+        "full_count": stats["full_count"],
+        "selection": {"excluded": [{**_vacancy_data(i["vacancy"]), "reason": i["reason"]} for i in selection["excluded"]],
+                      "included": selection["included"], "unknown_roles": selection["unknown"]},
+        "dictionary_skills": [{"skill": skill, "vacancies": n, "share": n / total} for skill, n in skill_counts.most_common()],
+        "dictionary_missing": [skill for skill in dictionary if skill not in skill_counts],
+        "key_skills_unmatched": [{"skill": stats["unmatched_names"][key], "vacancies": n}
+                                 for key, n in stats["unmatched"].most_common(TOP_UNMATCHED)],
+        "llm": None,
+        "cv": None,
+        "vacancies": [_vacancy_data(v, stats["vacancy_skills"].get(str(v["id"]), [])) for v in vacancies],
+        "files": [] if single_file else [{**f, "used": used.get(f["name"], 0)} for f in files],
+    }
+    if use_llm:
+        processed = stats["llm_processed"]
+        top = sorted(stats["llm_counts"].items(), key=lambda kv: (-kv[1], kv[0]))[:TOP_LLM]
+        data["llm"] = {"error": llm_error, "processed": processed, "models": sorted(stats["llm_models"]),
+                       "skills": [{"skill": stats["llm_names"][key], "vacancies": n, "share": n / processed}
+                                  for key, n in top] if processed else []}
+        if cv_result is None:
+            data["cv"] = {"note": cv_note}
+        else:
+            share, items, by_status, coverage = _cv_summary(candidates or [], cv_result)
+            data["cv"] = {
+                "note": None, "provider": cv_result["provider"], "model": cv_result["model"],
+                "processed_at": cv_result["processed_at"], "fixed": cv_result["fixed"],
+                "cv_modified_at": _iso(cv_modified),
+                "coverage": coverage,
+                "counts": {status: by_status[status] for status in CV_STATUS_LABELS},
+                "items": [{"skill": i["skill"], "source": share[i["skill"]]["source"],
+                           "share": share[i["skill"]]["share"], "status": i["status"], "quote": i["quote"]}
+                          for i in items],
+            }
+    return data
+
+
+def _iso(value: Optional[datetime]) -> Optional[str]:
+    return value.isoformat(timespec="seconds") if value else None
 
 
 def _excluded_section(selection: Optional[dict[str, Any]]) -> list[str]:
@@ -826,9 +910,16 @@ def analyze(data_path: Optional[Path] = None, days: Optional[int] = None, area: 
                 warnings.append(cv_note)
 
     REPORTS_DIR.mkdir(exist_ok=True)
+    generated = datetime.now().astimezone()
+    single_file = data_path is not None
+    cv_modified = datetime.fromtimestamp(CV_PATH.stat().st_mtime).astimezone() if CV_PATH.exists() else None
+    # Сначала .json, затем .md: есть .md — рядом точно есть .json (AC 6.2).
+    data = report_data(stats, dictionary, vacancies, files, days, area, use_llm, llm_error, candidates,
+                       cv_result, cv_note, single_file, selection, generated, cv_modified)
+    write_text_atomic(REPORT_PATH.with_suffix(".json"), json.dumps(data, ensure_ascii=False, indent=2, default=str))
     report = build_report(stats, dictionary, vacancies, files, days, area, use_llm,
-                          llm_error, candidates, cv_result, cv_note, single_file=data_path is not None,
-                          selection=selection)
+                          llm_error, candidates, cv_result, cv_note, single_file=single_file,
+                          selection=selection, generated=generated)
     write_text_atomic(REPORT_PATH, report)
     logger.info("Отчёт сохранён в %s", REPORT_PATH)
     return REPORT_PATH, len(vacancies), warnings
